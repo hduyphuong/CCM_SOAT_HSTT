@@ -21,7 +21,7 @@ def doc_khung(path):
         v = wb[sh][f"{col}1"].value
         if v != lab: raise ValueError(f"Khung không đúng mẫu v3: {sh}!{col}1 = {v!r}, cần {lab!r}")
     k = dict(path=path, hd={}, dong={}, lk_kl=defaultdict(float), lk_tien=defaultdict(float), dot_cuoi={}, tu_treo=defaultdict(float),
-             doi_tac={}, nhom_ns={}, ns=defaultdict(float), th_ns=defaultdict(float), sheet_rows={}, lk_tien_dong=defaultdict(float))
+             dot_cuoi_tu={}, doi_tac={}, nhom_ns={}, ns=defaultdict(float), th_ns=defaultdict(float), sheet_rows={}, lk_tien_dong=defaultdict(float))
     w1 = wb["N1_DanhMuc"]
     for r in range(3, w1.max_row + 1):
         if w1[f"G{r}"].value: k["doi_tac"][w1[f"G{r}"].value] = (w1[f"H{r}"].value or "", w1[f"I{r}"].value or "")
@@ -49,7 +49,9 @@ def doc_khung(path):
         loai, st = w[f"D{r}"].value, str(w[f"E{r}"].value) if w[f"E{r}"].value is not None else ""
         kl, dg, tien = w[f"H{r}"].value, num(w[f"I{r}"].value), num(w[f"J{r}"].value)
         gt = kl * dg if isinstance(kl, (int, float)) else tien
-        if isinstance(w[f"B{r}"].value, (int, float)): k["dot_cuoi"][m] = max(k["dot_cuoi"].get(m, 0), int(w[f"B{r}"].value))
+        if isinstance(w[f"B{r}"].value, (int, float)) and w[f"B{r}"].value:   # đợt cuối: tách HSTT chính (KL) và tạm ứng giữa kỳ
+            key = "dot_cuoi" if loai in ("THUC_HIEN", "DIEU_CHINH", "HOAN_UNG") else "dot_cuoi_tu"
+            k[key][m] = max(k[key].get(m, 0), int(w[f"B{r}"].value))
         if loai in ("THUC_HIEN", "DIEU_CHINH"):
             if isinstance(kl, (int, float)): k["lk_kl"][(m, st)] += kl
             k["lk_tien"][m] += gt; k["th_ns"][ma_ns_of.get((m, st), "")] += gt; k["lk_tien_dong"][(m, st)] += gt
@@ -119,7 +121,11 @@ def kiem(hs, k, van_tay_da_co=()):
     h = k["hd"][ma]; ds_dong = k["dong"].get(ma, [])
     # lớp 1 — đợt
     dc = k["dot_cuoi"].get(ma, 0)
-    if cv["dot"] is not None and cv["dot"] <= dc and pl["loai_hs"] != "TAM_UNG": add("CHAN", "Hồ sơ", cv["o"].get("dot", "COVER"), cv["dot"], dc, f"Đợt {cv['dot']} đã ghi sổ (đợt cuối trong khung: {dc}) — chống trả trùng")
+    dtu = k["dot_cuoi_tu"].get(ma, 0)
+    if cv["dot"] is not None and cv["dot"] <= dc:                 # MỌI loại hồ sơ (kể cả tạm ứng): đợt ≤ đợt đã ghi ⇒ hồ sơ CŨ
+        add("CHAN", "Hồ sơ", cv["o"].get("dot", "COVER"), cv["dot"], dc, f"Đợt {cv['dot']} cũ hơn/đã ghi sổ (khung đã ghi tới đợt {dc}) — chống trả trùng, chống ghi lùi lũy kế")
+    elif pl["loai_hs"] == "TAM_UNG" and cv["dot"] is not None and cv["dot"] <= dtu:
+        add("CHAN", "Hồ sơ", cv["o"].get("dot", "COVER"), cv["dot"], dtu, f"Tạm ứng đợt {cv['dot']} đã ghi sổ")
     elif cv["dot"] is not None and cv["dot"] > dc + 1: add("LUU_Y", "Hồ sơ", cv["o"].get("dot", "COVER"), cv["dot"], dc + 1, "Thiếu đợt ở giữa so với khung")
     # lớp 2 — theo HĐ · lớp 4 — theo đợt trước
     khop = []
