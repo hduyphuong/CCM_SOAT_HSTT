@@ -164,11 +164,11 @@ async function tabBCTC() {
       <td class="n ${ng(x.ns - x.thuc_hien)}">${typeof x.ns === "number" ? tien(x.ns - x.thuc_hien) : "—"}</td><td class="n">${tien(x.eac)}${Math.abs(x.ns_tru_eac || 0) >= 1 ? `<div class="note ${ng(x.ns_tru_eac)}">NS−EAC ${tien(x.ns_tru_eac)}</div>` : ""}</td><td class="n ${ng(x.ln_dk)}">${tien(x.ln_dk)}</td></tr>`;
     let h = `<thead><tr><th>Tên hạng mục</th><th>Hợp đồng liên kết</th><th class="n">Doanh thu phân bổ</th><th class="n">Phân bổ dự trù (NS)</th><th class="n">GT HĐ đã ký</th>
       <th class="n">Đã thực hiện</th><th class="n">Còn lại NS</th><th class="n">EAC</th><th class="n">LN dự kiến</th></tr></thead><tbody>
-      <tr class="l0 a"><td colspan="9">HÀNG A — DOANH THU (trước VAT)</td></tr>
+      <tr class="l0 hA"><td colspan="9">HÀNG A — DOANH THU (trước VAT)</td></tr>
       <tr class="l2"><td>Hợp đồng với CĐT — bản gốc<div class="note">R1 mục 1</div></td><td>${esc((d.hop_dong.find(x => x.ben === "CĐT") || {}).so_hd || "")}</td><td class="n">${tien(CV("1"))}</td><td colspan="6"></td></tr>
       <tr class="l2"><td>Phụ lục / phát sinh với CĐT<div class="note">R1 mục 2</div></td><td></td><td class="n">${tien(CV("2"))}</td><td colspan="6"></td></tr>
       <tr class="l1"><td>Cộng doanh thu điều chỉnh</td><td class="note">đã nghiệm thu ${tien(CV("3a"))} · ${pc(CV("3a") / CV("3"))}</td><td class="n">${tien(CV("3"))}</td><td colspan="6"></td></tr>
-      <tr class="l0 b"><td colspan="9">HÀNG B — CHI PHÍ (theo mã ngân sách)</td></tr>`;
+      <tr class="l0 hB"><td colspan="9">HÀNG B — CHI PHÍ (theo mã ngân sách)</td></tr>`;
     for (const nh of Object.keys(NHOM)) {
       const all = d.ns.filter(x => x.nhom === nh), hs = all.filter(ok); if (!hs.length) continue;
       h += dong({ten: `${nh} — ${NHOM[nh]}`, dt_pb: S(all, "dt_pb"), ns: S(all, "ns"), cam_ket: S(all, "cam_ket"), thuc_hien: S(all, "thuc_hien"), eac: S(all, "eac"), ns_tru_eac: S(all, "ns_tru_eac"), ln_dk: S(all, "ln_dk")}, "l1");
