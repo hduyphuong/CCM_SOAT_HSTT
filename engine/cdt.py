@@ -48,7 +48,7 @@ def doc_claim(path, wb):
         mm = re.search(r"THANG (\d{1,2}) ?/(\d{4})", bia)
         if mm: ngay = dt.date(int(mm.group(2)), int(mm.group(1)), 25)
     kq["cover"] = dict(ten_don_vi="CĐT — hồ sơ thanh toán gửi CĐT", so_hd=so_hd, dot=dot, ngay=ngay, o={"so_hd": f"{sn}!đầu trang", "dot": f"{sn}!đầu trang"})
-    kq["tien"] = tien
+    kq["tien"] = tien; kq["du_an_text"] = txt
     return kq
 
 def doc_ben_cdt(wb, nhom_ns):

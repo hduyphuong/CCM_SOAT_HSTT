@@ -58,8 +58,12 @@ def doc_file(path):
     sn = next((s for s in wb.sheetnames if na(s) in ("05.GIA TRI", "BANG KL") or re.fullmatch(r"\d+\.BANG KL", na(s))), None)
     if not sn: wb.close(); raise ValueError("Không thấy sheet bảng giá trị / bảng KL (05.Giá trị hoặc 5.BẢNG KL)")
     rows = [list(r) for r in wb[sn].iter_rows(min_row=1, max_row=200, max_col=30, values_only=True)]
+    txt = []
+    sc = next((s for s in wb.sheetnames if "COVER" in na(s)), None)
+    for r in (wb[sc].iter_rows(min_row=1, max_row=4, max_col=10, values_only=True) if sc else []): txt += [na(c) for c in r if c]
     wb.close()
     h = next(i for i, r in enumerate(rows) if any(na(c) == "DIEN GIAI" for c in r))
+    txt += [na(c) for r in rows[:min(h, 6)] for c in r if c and any(k in na(c) for k in ("DU AN", "CONG TRINH"))]
     H, S = [na(c) for c in rows[h]], [na(c) for c in rows[h + 1]]
     col = lambda lab, arr: next((j for j, c in enumerate(arr) if c.startswith(lab)), None)
     c_stt, c_ds, c_dg = col("STT", H), col("DIEN GIAI", H), col("DON GIA", H)
@@ -89,5 +93,5 @@ def doc_file(path):
             kq["lines"].append(dict(dong=i, khung=khung, stt=a, ds=str(ds).strip(), dvt=str(r[c_dv] or "").strip(), kl_hd=r[c_klhd] if isinstance(r[c_klhd], (int, float)) else None,
                 dg=num(r[c_dg]), kl_kt=num(r[kt[0]]), kl_kn=num(r[kn[0]]), kl_lk=num(r[lk[0]]),
                 tt_kt=num(r[kt[1]]), tt_kn=num(r[kn[1]]), tt_lk=num(r[lk[1]]), ngoai=ngoai))
-    kq["du_tru"] = round(kq["tu"] + kq["hu"])
+    kq["du_tru"] = round(kq["tu"] + kq["hu"]); kq["du_an_text"] = " ".join(txt)
     return kq

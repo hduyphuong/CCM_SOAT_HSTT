@@ -22,7 +22,7 @@ def doc_khung(path):
         if v != lab: raise ValueError(f"Khung không đúng mẫu v3: {sh}!{col}1 = {v!r}, cần {lab!r}")
     k = dict(path=path, hd={}, dong={}, lk_kl=defaultdict(float), lk_tien=defaultdict(float), dot_cuoi={}, tu_treo=defaultdict(float),
              dot_cuoi_tu={}, doi_tac={}, nhom_ns={}, ns=defaultdict(float), th_ns=defaultdict(float), sheet_rows={}, lk_tien_dong=defaultdict(float))
-    w1 = wb["N1_DanhMuc"]
+    w1 = wb["N1_DanhMuc"]; k["ten_du_an"] = str(w1["B3"].value or ""); k["tu_khoa"] = []
     for r in range(3, w1.max_row + 1):
         if w1[f"G{r}"].value: k["doi_tac"][w1[f"G{r}"].value] = (w1[f"H{r}"].value or "", w1[f"I{r}"].value or "")
         if w1[f"Q{r}"].value: k["nhom_ns"][w1[f"Q{r}"].value] = w1[f"T{r}"].value or ""
@@ -99,7 +99,24 @@ def khop_dong(l, ds_dong):
     if len(c) > 1: c = [d for d in c if d["stt"] == l["stt"]] or [d for d in c if abs(d["don_gia"] - l["dg"]) < 0.5] or c[:1]
     return c[0] if c else None
 
+BO_TU = {"NHA", "O", "XA", "HOI", "DU", "AN", "CONG", "TRINH", "CHUNG", "CU", "KHU", "TOA", "THAP", "KHUNG", "THU", "WEBAPP", "BO", "DOT"}
+def kiem_du_an(hs, k):
+    """Hồ sơ có thuộc dự án này không. Từ khoá: du_an.json 'tu_khoa', không có thì lấy tên dự án trong khung (≥2 từ đặc trưng)."""
+    t = hs.get("du_an_text") or ""
+    if not t.strip(): return [("LUU_Y", "Hồ sơ", "COVER", "—", k["ten_du_an"], "Không đọc được tên dự án / công trình trên hồ sơ — anh kiểm bằng mắt")]
+    if k.get("tu_khoa"):
+        ok = any(na(x) in t for x in k["tu_khoa"])
+    else:
+        sig = [w for w in re.sub(r"[^A-Z0-9 ]", " ", na(k["ten_du_an"])).split() if w not in BO_TU and not re.fullmatch(r"D\d+", w)]
+        ok = sum(w in t.split() for w in sig) >= min(2, len(sig)) if sig else True
+    return [] if ok else [("CHAN", "Hồ sơ", "COVER / đầu bảng", t[:60], k["ten_du_an"], "Hồ sơ KHÔNG thuộc dự án này — nạp nhầm dự án")]
+
 def kiem(hs, k, van_tay_da_co=()):
+    kq = _kiem(hs, k, van_tay_da_co)
+    kq["co"] = _dang(kiem_du_an(hs, k)) + kq["co"]
+    return kq
+
+def _kiem(hs, k, van_tay_da_co=()):
     if hs.get("loai") == "CDT":
         import cdt; return cdt.kiem_cdt(hs, k, van_tay_da_co)
     pl, co = phan_loai(hs, k)

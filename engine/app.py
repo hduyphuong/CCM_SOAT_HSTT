@@ -38,7 +38,7 @@ def xu_ly_nap(b):
     if os.path.exists(dich): os.remove(tam)                        # nạp lại đúng file cũ: giữ bản gốc chỉ đọc
     else: os.replace(tam, dich); os.chmod(dich, 0o444)
     hs = D.doc_file(dich); hs["van_tay"] = vt
-    k = K.doc_khung(cfg["khung"]); kq = K.kiem(hs, k, cu)
+    k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", []); kq = K.kiem(hs, k, cu)
     kh = G.ke_hoach(hs, kq, k) if kq["phan_loai"]["ma_hd"] else None
     cu_rec = s.get(i)
     if cu_rec and cu_rec["trang_thai"] == "DA_GHI_SO":           # đã ghi sổ ⇒ không cho ghi lần 2
@@ -59,7 +59,7 @@ def xu_ly_duyet(b):
         with KHOA:
             cfg = du_an()[da]
             hs = D.doc_file(rec["file"]); hs["van_tay"] = rec["van_tay"]
-            k = K.doc_khung(cfg["khung"]); kq = K.kiem(hs, k)                  # kiểm lại ngay trước khi ghi (khung có thể đã đổi)
+            k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", []); kq = K.kiem(hs, k)                  # kiểm lại ngay trước khi ghi (khung có thể đã đổi)
             if any(c["muc"] == "CHAN" for c in kq["co"]): return dict(ok=False, ly_do="Kiểm lại trước khi ghi phát sinh cờ CHẶN", co=kq["co"])
             kh = G.ke_hoach(hs, kq, k)
             kq_ghi = G.ghi(cfg["khung"], kh, rec["ten"], os.path.join(DATA, da, "backup"))
