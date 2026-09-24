@@ -39,6 +39,11 @@ def xu_ly_nap(b):
     else: os.replace(tam, dich); os.chmod(dich, 0o444)
     hs = D.doc_file(dich); hs["van_tay"] = vt
     k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", []); kq = K.kiem(hs, k, cu)
+    for da2 in du_an():                                            # HĐ nguyên tắc NCC dùng chung nhiều dự án ⇒ cùng 1 file không được nạp ở 2 dự án
+        if da2 == da: continue
+        r2 = next((v for v in so_nap(da2).values() if v["van_tay"] == vt and v["trang_thai"] != "TRA_DOI"), None)
+        if r2: kq["co"].insert(0, dict(muc="CHAN", lop="Hồ sơ", vi_tri="file", hstt=vt[:12], doi_chieu=da2,
+                                        mo_ta=f"Cùng file này đã nạp ở dự án {da2} ({r2['trang_thai']}) — không ghi 2 dự án"))
     kh = G.ke_hoach(hs, kq, k) if kq["phan_loai"]["ma_hd"] else None
     cu_rec = s.get(i)
     if cu_rec and cu_rec["trang_thai"] == "DA_GHI_SO":           # đã ghi sổ ⇒ không cho ghi lần 2
