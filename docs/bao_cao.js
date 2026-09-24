@@ -8,10 +8,10 @@ const pc = v => typeof v === "number" && isFinite(v) ? (v * 100).toLocaleString(
 const dd = v => v ? String(v).slice(0, 10).split("-").reverse().join("/") : "—";
 const DINH = {ty: v => ty(v), tien: v => tien(v), pc: v => pc(v)};
 const sd = (v, f) => typeof v === "number" && isFinite(v) ? `<span class="cu" data-v="${v}" data-f="${f}">${DINH[f](v)}</span>` : DINH[f](v);
-function hoatHinh(root) {                                           // số chạy từ 0 → giá trị thật (1 giây, chậm dần)
+function hoatHinh(root) {                                           // số chạy từ 0 → giá trị thật (~2,4 giây, ease-out expo: lướt chậm dần về đích)
   if (!root || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const ds = [...root.querySelectorAll(".cu")], t0 = performance.now();
-  const buoc = now => { const k = Math.min(1, (now - t0) / 1000), e = 1 - Math.pow(1 - k, 3);
+  const buoc = now => { const k = Math.min(1, (now - t0 - 250) / 2400), e = k <= 0 ? 0 : 1 - Math.pow(2, -10 * k) * (k < 1 ? 1 : 0);
     ds.forEach(el => el.textContent = DINH[el.dataset.f](k < 1 ? +el.dataset.v * e : +el.dataset.v)); if (k < 1) requestAnimationFrame(buoc) };
   requestAnimationFrame(buoc);
 }
@@ -202,8 +202,8 @@ function bieuDoTien(ds) {
   for (let i = 0; i <= 5; i++) { const v = lo + (hi - lo) * i / 5, yy = y(v); s += `<line x1="${L}" x2="${W - 10}" y1="${yy}" y2="${yy}" class="gl"/><text x="${L - 6}" y="${yy + 4}" class="ax" text-anchor="end">${ty(v)}</text>` }
   ds.forEach((x, i) => { const cx = L + i * cw, bw = Math.min(20, cw / 2 - 3);
     if (x.thang === moc) s += `<rect x="${cx}" y="${T}" width="${cw}" height="${H - T - B}" rx="6" class="moc"/><text x="${cx + cw / 2}" y="${T - 5}" class="ax" text-anchor="middle">cut-off</text>`;
-    s += `<rect x="${cx + cw / 2 - bw - 1}" y="${y(x.thu)}" width="${bw}" height="${y0 - y(x.thu)}" rx="3" class="thu" style="animation-delay:${i * 70}ms"><title>${x.thang} · Thu ${tien(x.thu)}</title></rect>`;
-    s += `<rect x="${cx + cw / 2 + 1}" y="${y(x.chi)}" width="${bw}" height="${y0 - y(x.chi)}" rx="3" class="chi" style="animation-delay:${i * 70 + 35}ms"><title>${x.thang} · Chi ${tien(x.chi)}</title></rect>`;
+    s += `<rect x="${cx + cw / 2 - bw - 1}" y="${y(x.thu)}" width="${bw}" height="${y0 - y(x.thu)}" rx="3" class="thu" style="animation-delay:${300 + i * 140}ms"><title>${x.thang} · Thu ${tien(x.thu)}</title></rect>`;
+    s += `<rect x="${cx + cw / 2 + 1}" y="${y(x.chi)}" width="${bw}" height="${y0 - y(x.chi)}" rx="3" class="chi" style="animation-delay:${370 + i * 140}ms"><title>${x.thang} · Chi ${tien(x.chi)}</title></rect>`;
     s += `<text x="${cx + cw / 2}" y="${H - 10}" class="ax" text-anchor="middle">${x.thang}</text>` });
   s += `<line x1="${L}" x2="${W - 10}" y1="${y0}" y2="${y0}" class="zero"/><polyline class="lk" pathLength="1" points="${ds.map((x, i) => `${L + i * cw + cw / 2},${y(x.lk)}`).join(" ")}"/>`;
   ds.forEach((x, i) => s += `<circle cx="${L + i * cw + cw / 2}" cy="${y(x.lk)}" r="3.5" class="lkd"><title>${x.thang} · Lũy kế ròng ${tien(x.lk)}</title></circle>`);

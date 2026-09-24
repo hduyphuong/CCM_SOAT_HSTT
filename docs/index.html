@@ -20,7 +20,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:13.5px/1.5 var(--sans);
 .brand b{display:block;color:#fff;font-size:16px;letter-spacing:.02em}.brand span{font-size:11.5px;color:#8fa3c2}
 nav{display:flex;flex-direction:column;gap:2px;flex:1}
 nav .grp{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#6f86a8;padding:14px 10px 6px}
-nav button{display:flex;align-items:center;gap:11px;font:inherit;font-size:13.5px;font-weight:500;color:#c9d5e8;background:none;border:0;border-radius:9px;padding:9px 11px;cursor:pointer;text-align:left;transition:background .15s,color .15s}
+nav button{display:flex;align-items:center;gap:11px;font:inherit;font-size:13.5px;font-weight:500;color:#c9d5e8;background:none;border:0;border-radius:9px;padding:9px 11px;cursor:pointer;text-align:left;transition:background .35s,color .35s}
 nav button svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
 nav button:hover{background:rgba(255,255,255,.06);color:#fff}
 nav button.on{background:rgba(255,255,255,.1);color:#fff;font-weight:600;box-shadow:inset 3px 0 0 #ffc857}
@@ -127,26 +127,26 @@ table.bctc tr.l1 td{font-weight:700;background:#f5f7fb}table.bctc tr.l2 td:first
 @keyframes cot{from{transform:scaleY(0)}}@keyframes ve{to{stroke-dashoffset:0}}@keyframes vongc{to{stroke-dashoffset:var(--p)}}
 @keyframes nhip{0%{box-shadow:0 0 0 0 rgba(52,199,123,.55)}70%{box-shadow:0 0 0 8px rgba(52,199,123,0)}100%{box-shadow:0 0 0 0 rgba(52,199,123,0)}}
 @keyframes troi{to{transform:translate(-70px,50px) scale(1.15)}}@keyframes nay{to{transform:translateY(-6px)}}@keyframes sang{to{background-position:-200% 0}}
-.dr>*,#t-nap>*,#t-hs>*{animation:len .5s cubic-bezier(.2,.8,.2,1) both}
-.dr>*:nth-child(2){animation-delay:.06s}.dr>*:nth-child(3){animation-delay:.12s}.dr>*:nth-child(4){animation-delay:.18s}.dr>*:nth-child(5){animation-delay:.24s}.dr>*:nth-child(n+6){animation-delay:.3s}
-.kpis>*{animation:len .55s cubic-bezier(.2,.8,.2,1) both}.kpis>*:nth-child(2){animation-delay:.1s}.kpis>*:nth-child(3){animation-delay:.18s}.kpis>*:nth-child(4){animation-delay:.26s}
-.bar i,.bar2 i{transform-origin:left;animation:dai 1s cubic-bezier(.2,.8,.2,1) .15s both}.bar2 em{animation:hien .4s .9s both}
-.chart rect.thu,.chart rect.chi{transform-box:fill-box;transform-origin:50% 100%;animation:cot .7s cubic-bezier(.2,.8,.2,1) both}
-.chart .lk{stroke-dasharray:1;stroke-dashoffset:1;animation:ve 1.4s .55s ease-out forwards}.chart .lkd{animation:hien .4s 1.5s both}
+.dr>*,#t-nap>*,#t-hs>*{animation:len 1.1s cubic-bezier(.16,1,.3,1) both}
+.dr>*:nth-child(2){animation-delay:.14s}.dr>*:nth-child(3){animation-delay:.28s}.dr>*:nth-child(4){animation-delay:.42s}.dr>*:nth-child(5){animation-delay:.56s}.dr>*:nth-child(n+6){animation-delay:.7s}
+.kpis>*{animation:len 1.2s cubic-bezier(.16,1,.3,1) .1s both}.kpis>*:nth-child(2){animation-delay:.25s}.kpis>*:nth-child(3){animation-delay:.4s}.kpis>*:nth-child(4){animation-delay:.55s}
+.bar i,.bar2 i{transform-origin:left;animation:dai 2.2s cubic-bezier(.16,1,.3,1) .45s both}.bar2 em{animation:hien .8s 1.8s both}
+.chart rect.thu,.chart rect.chi{transform-box:fill-box;transform-origin:50% 100%;animation:cot 1.5s cubic-bezier(.16,1,.3,1) .3s both}
+.chart .lk{stroke-dasharray:1;stroke-dashoffset:1;animation:ve 3s 1.1s cubic-bezier(.45,.05,.25,1) forwards}.chart .lkd{animation:hien .9s 3.2s both}
 .chart rect.thu:hover,.chart rect.chi:hover{filter:brightness(1.12)}.chart .lkd:hover{r:6}
-table.bang tbody tr{animation:hien .35s both}
-.kpi,.card{transition:transform .2s ease,box-shadow .2s ease}
+table.bang tbody tr{animation:hien .7s ease-out both}
+.kpi,.card{transition:transform .45s cubic-bezier(.16,1,.3,1),box-shadow .45s cubic-bezier(.16,1,.3,1)}
 .kpi:hover{transform:translateY(-3px);box-shadow:0 2px 4px rgba(16,34,64,.06),0 14px 32px rgba(16,34,64,.10)}
 .g2>.card:hover{box-shadow:0 2px 4px rgba(16,34,64,.05),0 12px 30px rgba(16,34,64,.08)}
-.kpi .ki{transition:transform .25s}.kpi:hover .ki{transform:rotate(-8deg) scale(1.08)}
-.dot.on{animation:nhip 2.2s infinite}
+.kpi .ki{transition:transform .5s cubic-bezier(.16,1,.3,1)}.kpi:hover .ki{transform:rotate(-8deg) scale(1.08)}
+.dot.on{animation:nhip 3s infinite}
 .hero{position:relative;overflow:hidden}.hero>*{position:relative;z-index:1}
-.hero::after{content:"";position:absolute;z-index:0;width:360px;height:360px;right:-90px;top:-150px;border-radius:50%;background:radial-gradient(circle,rgba(255,200,87,.22),transparent 68%);animation:troi 10s ease-in-out infinite alternate}
+.hero::after{content:"";position:absolute;z-index:0;width:360px;height:360px;right:-90px;top:-150px;border-radius:50%;background:radial-gradient(circle,rgba(255,200,87,.22),transparent 68%);animation:troi 18s ease-in-out infinite alternate}
 .rings{display:flex;gap:16px}.ring{text-align:center;font-size:11px;color:#b8c7de;width:78px}.ring svg{width:66px;height:66px;display:block;margin:0 auto 4px}
-.ring circle{fill:none;stroke-width:7}.ring .nen{stroke:rgba(255,255,255,.12)}.ring .vg{stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100;animation:vongc 1.3s .35s cubic-bezier(.2,.8,.2,1) forwards}
+.ring circle{fill:none;stroke-width:7}.ring .nen{stroke:rgba(255,255,255,.12)}.ring .vg{stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100;animation:vongc 2.6s .6s cubic-bezier(.16,1,.3,1) forwards}
 .ring text{fill:#fff;font:800 12px var(--sans)}
 .drop:hover::before,.drop.hot::before{animation:nay .7s ease-in-out infinite alternate}
-nav button svg{transition:transform .2s}nav button:hover svg{transform:translateX(2px)}
+nav button svg{transition:transform .4s cubic-bezier(.16,1,.3,1)}nav button:hover svg{transform:translateX(2px)}
 .sk{border-radius:14px;background:linear-gradient(90deg,#e9edf4 0%,#f5f7fb 40%,#e9edf4 80%);background-size:200% 100%;animation:sang 1.3s linear infinite}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}
   .chart .lk{stroke-dashoffset:0}.ring .vg{stroke-dashoffset:var(--p)}}
