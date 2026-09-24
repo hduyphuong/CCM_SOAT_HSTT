@@ -3,12 +3,13 @@ Trang (GitHub Pages / file local) gọi vào đây. Dữ liệu CHỈ nằm trê
   GET  /ping                      · GET /du-an                 · GET /ho-so?du_an=X
   POST /nap    {du_an, ten, b64}  → lưu file, phân loại, tự kiểm 4 lớp, kế hoạch ghi sổ
   POST /duyet  {du_an, id, hanh_dong: DONG_Y | YEU_CAU_SUA | TRA_DOI, ly_do}
-  GET  /bao-cao?du_an=X           → R0 tổng quan + 90_Check (đọc từ file khung)"""
+  GET  /bao-cao?du_an=X           → R0 tổng quan + 90_Check (đọc từ file khung)
+  GET  /du-lieu?du_an=X           → ĐẦU RA: hợp đồng · bill · báo cáo tài chính · đối tác · dòng tiền (đọc R1…R7 của file khung)"""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json, os, sys, base64, datetime as dt, threading, traceback
 from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import doc_hstt as D, kiem as K, ghi_so as G
+import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC
 
 PORT = 8765
 DATA = r"D:\QLCP_HD\WEBAPP_SOAT_HSTT_DATA"
@@ -83,6 +84,12 @@ def bao_cao(da):
     wb.close()
     return dict(tong_quan=r0, kiem=ck, ghi_chu="Số đọc từ lần Excel tính gần nhất (sau mỗi lần ghi sổ).")
 
+_DL = {}                                              # cache theo (đường dẫn, mtime) — file đổi (ghi sổ) thì đọc lại
+def du_lieu(da):
+    p = du_an()[da]["khung"]; m = os.path.getmtime(p)
+    if _DL.get(p, (None,))[0] != m: _DL[p] = (m, BC.doc(p, so_nap(da)))
+    return dict(_DL[p][1], cap_nhat=dt.datetime.fromtimestamp(m).strftime("%d/%m/%Y %H:%M"))
+
 class H(BaseHTTPRequestHandler):
     def _cors(self):
         o = self.headers.get("Origin", "")
@@ -102,6 +109,7 @@ class H(BaseHTTPRequestHandler):
             if u.path == "/du-an": return self._tra(200, {k: v.get("ten", k) for k, v in du_an().items()})
             if u.path == "/ho-so": return self._tra(200, sorted(so_nap(q["du_an"]).values(), key=lambda r: r["luc"], reverse=True))
             if u.path == "/bao-cao": return self._tra(200, bao_cao(q["du_an"]))
+            if u.path == "/du-lieu": return self._tra(200, du_lieu(q["du_an"]))
             self._tra(404, dict(loi="không có đường dẫn này"))
         except Exception as e: traceback.print_exc(); self._tra(500, dict(loi=str(e)))
     def do_POST(self):
