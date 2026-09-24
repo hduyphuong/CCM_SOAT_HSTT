@@ -6,6 +6,19 @@ const ty = v => { if (typeof v !== "number" || !isFinite(v)) return "—"; const
   return a >= 1e9 ? (v / 1e9).toLocaleString("vi-VN", {maximumFractionDigits: 2}) + " tỷ" : a >= 1e6 ? (v / 1e6).toLocaleString("vi-VN", {maximumFractionDigits: 1}) + " tr" : tien(v) };
 const pc = v => typeof v === "number" && isFinite(v) ? (v * 100).toLocaleString("vi-VN", {maximumFractionDigits: 1}) + "%" : "—";
 const dd = v => v ? String(v).slice(0, 10).split("-").reverse().join("/") : "—";
+const DINH = {ty: v => ty(v), tien: v => tien(v), pc: v => pc(v)};
+const sd = (v, f) => typeof v === "number" && isFinite(v) ? `<span class="cu" data-v="${v}" data-f="${f}">${DINH[f](v)}</span>` : DINH[f](v);
+function hoatHinh(root) {                                           // số chạy từ 0 → giá trị thật (1 giây, chậm dần)
+  if (!root || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const ds = [...root.querySelectorAll(".cu")], t0 = performance.now();
+  const buoc = now => { const k = Math.min(1, (now - t0) / 1000), e = 1 - Math.pow(1 - k, 3);
+    ds.forEach(el => el.textContent = DINH[el.dataset.f](k < 1 ? +el.dataset.v * e : +el.dataset.v)); if (k < 1) requestAnimationFrame(buoc) };
+  requestAnimationFrame(buoc);
+}
+const vong = (p, t, c) => { const q = typeof p === "number" && isFinite(p) ? Math.max(0, Math.min(1, p)) : 0;
+  return `<div class="ring"><svg viewBox="0 0 66 66"><circle cx="33" cy="33" r="27" class="nen"/>
+    <circle cx="33" cy="33" r="27" stroke="${c}" pathLength="100" class="vg" style="--p:${(100 - q * 100).toFixed(1)}" transform="rotate(-90 33 33)"/>
+    <text x="33" y="37.5" text-anchor="middle">${pc(p)}</text></svg><span>${t}</span></div>` };
 const ng = v => typeof v === "number" && v < -0.5 ? "neg" : "";
 const bar = (v, max, cls = "") => `<div class="bar"><i class="${cls}" style="width:${Math.max(0, Math.min(100, max ? v / max * 100 : 0)).toFixed(1)}%"></i></div>`;
 const ICO = {dt: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>', nt: '<path d="M20 6L9 17l-5-5"/>',
@@ -169,14 +182,14 @@ async function tabBCTC() {
   el.innerHTML = `<div class="card"><div class="hd"><div><h3>Báo cáo tài chính dự án</h3><div class="note">${esc(d.du_an.ten)} · CĐT ${esc(d.du_an.cdt)} · cut-off ${dd(d.du_an.moc)}</div></div><span class="sp"></span>
     <input class="tim" placeholder="🔎 Tìm hạng mục, đối tác, số HĐ…"><button class="btn2" data-x="csv">⭳ Xuất Excel (CSV)</button><button class="btn2" onclick="window.print()">🖨 In / PDF</button></div>
     <div class="right"><table class="bang bctc"></table></div>
-    <div class="hangc"><div><span>Tổng Hàng A — Doanh thu</span><b>${tien(A)}</b></div><div><span>Tổng Hàng B — Ngân sách chi phí</span><b>${tien(Bns)}</b></div>
-      <div><span>Hàng C — Lợi nhuận kế hoạch (A − B)</span><b class="${ng(lnk)}">${tien(lnk)}</b><em>${pc(A ? lnk / A : null)}</em></div>
-      <div><span>EAC — chi phí cuối dự kiến</span><b>${tien(eac)}</b><em>NS − EAC ${tien(Bns - eac)}</em></div>
-      <div class="hl"><span>Lợi nhuận dự kiến (A − EAC)</span><b class="${ng(lnd)}">${tien(lnd)}</b><em>${pc(CV("12"))}</em></div></div>
+    <div class="hangc"><div><span>Tổng Hàng A — Doanh thu</span><b>${sd(A, "tien")}</b></div><div><span>Tổng Hàng B — Ngân sách chi phí</span><b>${sd(Bns, "tien")}</b></div>
+      <div><span>Hàng C — Lợi nhuận kế hoạch (A − B)</span><b class="${ng(lnk)}">${sd(lnk, "tien")}</b><em>${pc(A ? lnk / A : null)}</em></div>
+      <div><span>EAC — chi phí cuối dự kiến</span><b>${sd(eac, "tien")}</b><em>NS − EAC ${tien(Bns - eac)}</em></div>
+      <div class="hl"><span>Lợi nhuận dự kiến (A − EAC)</span><b class="${ng(lnd)}">${sd(lnd, "tien")}</b><em>${pc(CV("12"))}</em></div></div>
     ${!tt6 && !dp7 ? `<div class="warn" style="margin:0 16px 14px">Trích trước (R1 mục 6) và dự phòng rủi ro (mục 7) đang = 0 ⇒ lợi nhuận dự kiến là <b>trước</b> trích trước/dự phòng; 90_Check #27 báo CVR “chưa tin được”.</div>` : ""}</div>${chan(d)}`;
   el.querySelector(".tim").oninput = ve;
   el.querySelector("[data-x=csv]").onclick = () => xuatCSV("BaoCaoTaiChinh", cot, d.ns);
-  ve();
+  ve(); hoatHinh(el.querySelector(".hangc"));
 }
 // ───────────── TỔNG QUAN (dashboard) ─────────────
 function bieuDoTien(ds) {
@@ -189,17 +202,17 @@ function bieuDoTien(ds) {
   for (let i = 0; i <= 5; i++) { const v = lo + (hi - lo) * i / 5, yy = y(v); s += `<line x1="${L}" x2="${W - 10}" y1="${yy}" y2="${yy}" class="gl"/><text x="${L - 6}" y="${yy + 4}" class="ax" text-anchor="end">${ty(v)}</text>` }
   ds.forEach((x, i) => { const cx = L + i * cw, bw = Math.min(20, cw / 2 - 3);
     if (x.thang === moc) s += `<rect x="${cx}" y="${T}" width="${cw}" height="${H - T - B}" rx="6" class="moc"/><text x="${cx + cw / 2}" y="${T - 5}" class="ax" text-anchor="middle">cut-off</text>`;
-    s += `<rect x="${cx + cw / 2 - bw - 1}" y="${y(x.thu)}" width="${bw}" height="${y0 - y(x.thu)}" rx="3" class="thu"><title>${x.thang} · Thu ${tien(x.thu)}</title></rect>`;
-    s += `<rect x="${cx + cw / 2 + 1}" y="${y(x.chi)}" width="${bw}" height="${y0 - y(x.chi)}" rx="3" class="chi"><title>${x.thang} · Chi ${tien(x.chi)}</title></rect>`;
+    s += `<rect x="${cx + cw / 2 - bw - 1}" y="${y(x.thu)}" width="${bw}" height="${y0 - y(x.thu)}" rx="3" class="thu" style="animation-delay:${i * 70}ms"><title>${x.thang} · Thu ${tien(x.thu)}</title></rect>`;
+    s += `<rect x="${cx + cw / 2 + 1}" y="${y(x.chi)}" width="${bw}" height="${y0 - y(x.chi)}" rx="3" class="chi" style="animation-delay:${i * 70 + 35}ms"><title>${x.thang} · Chi ${tien(x.chi)}</title></rect>`;
     s += `<text x="${cx + cw / 2}" y="${H - 10}" class="ax" text-anchor="middle">${x.thang}</text>` });
-  s += `<line x1="${L}" x2="${W - 10}" y1="${y0}" y2="${y0}" class="zero"/><polyline class="lk" points="${ds.map((x, i) => `${L + i * cw + cw / 2},${y(x.lk)}`).join(" ")}"/>`;
+  s += `<line x1="${L}" x2="${W - 10}" y1="${y0}" y2="${y0}" class="zero"/><polyline class="lk" pathLength="1" points="${ds.map((x, i) => `${L + i * cw + cw / 2},${y(x.lk)}`).join(" ")}"/>`;
   ds.forEach((x, i) => s += `<circle cx="${L + i * cw + cw / 2}" cy="${y(x.lk)}" r="3.5" class="lkd"><title>${x.thang} · Lũy kế ròng ${tien(x.lk)}</title></circle>`);
   const am = ds.reduce((a, x) => x.lk < a.lk ? x : a, ds[0]);
   return s + `</svg><div class="legend"><span><i class="thu"></i>Thu từ CĐT</span><span><i class="chi"></i>Chi cho đối tác</span><span><i class="lk"></i>Lũy kế ròng</span>
     ${am && am.lk < 0 ? `<span>Âm sâu nhất: <b class="neg">${tien(am.lk)}</b> (${am.thang})</span>` : ""}<span class="note">${esc((ds.find(x => x.ghi) || {}).ghi || "")}</span></div>`;
 }
 async function tongQuan(force) {
-  const el = $("#t-bc"); el.innerHTML = `<div class="card"><div class="empty">Đang đọc file khung…</div></div>`;
+  const el = $("#t-bc"); el.innerHTML = `<div class="sk" style="height:150px"></div><div class="kpis">${'<div class="sk" style="height:112px"></div>'.repeat(4)}</div><div class="g2"><div class="sk" style="height:340px"></div><div class="sk" style="height:340px"></div></div>`;
   let d; try { d = await taiDL(force) } catch (e) { el.innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`; return }
   const T = d.tong_lai_lo["TỔNG DỰ ÁN"] || {}, A = CV("3"), nt = CV("3a"), cp = CV("8"), eac = CV("10"), ln = CV("11"), cam = CV("5"), ns = T.ns;
   const ck = d.kiem.map(c => ({...c, m: MUC_CK(c.ket_luan)})), dem = t => ck.filter(c => c.m[1] === t).length;
@@ -221,28 +234,29 @@ async function tongQuan(force) {
   el.innerHTML = `
   <div class="card hero"><div><div class="note up">Báo cáo tổng quan dự án</div><h2>${esc(d.du_an.ten)}</h2>
       <div class="note">Chủ đầu tư <b>${esc(d.du_an.cdt)}</b> · Cut-off <b>${dd(d.du_an.moc)}</b> · ${d.hop_dong.length} hợp đồng · ${d.bill.length} đợt thanh toán · file cập nhật ${esc(d.cap_nhat)}</div></div>
-    <span class="sp"></span><div class="tin"><div class="note">Độ tin cậy số liệu (90_Check)</div><div><span class="chip ok">${dem("Đạt")}/${ck.length} đạt</span>
+    <span class="sp"></span><div class="rings">${vong(nt / A, "Nghiệm thu / DT", "#34d399")}${vong(cp / eac, "Chi phí / EAC", "#ff8a7a")}${vong((cp + cam) / eac, "Đã cam kết", "#9db7ff")}</div>
+    <div class="tin"><div class="note">Độ tin cậy số liệu (90_Check)</div><div><span class="chip ok">${dem("Đạt")}/${ck.length} đạt</span>
       ${dem("Lệch số") ? `<span class="chip er">${dem("Lệch số")} lệch số</span>` : ""}${dem("Rủi ro chi phí") ? `<span class="chip er">${dem("Rủi ro chi phí")} rủi ro chi phí</span>` : ""}
       ${dem("Thiếu hồ sơ") ? `<span class="chip wa">${dem("Thiếu hồ sơ")} thiếu hồ sơ</span>` : ""}${dem("Chưa tin được") ? '<span class="chip wa">CVR chưa tin được</span>' : ""}</div></div>
     <div class="acts0"><button class="btn2" onclick="tongQuan(true)">⟳ Làm mới</button><button class="btn2" onclick="window.print()">🖨 In / PDF</button></div></div>
   <div class="kpis">
-    <div class="kpi">${ki("dt")}<span>Doanh thu hợp đồng (trước VAT)</span><b>${ty(A)}</b><div class="note">HĐ gốc ${ty(CV("1"))} · phụ lục ${ty(CV("2"))}</div></div>
-    <div class="kpi">${ki("nt", "g")}<span>Đã nghiệm thu với CĐT</span><b>${ty(nt)}</b>${bar(nt, A, "ok")}<div class="note">${pc(nt / A)} doanh thu · còn ${ty(A - nt)}</div></div>
-    <div class="kpi">${ki("cp", "r")}<span>Chi phí đã thực hiện</span><b>${ty(cp)}</b>${bar(cp, eac, "er")}<div class="note">${pc(cp / eac)} EAC · HĐ đã ký chưa TH ${ty(cam)}</div></div>
-    <div class="kpi ${ln < 0 ? "xau" : "tot"}">${ki("ln", ln < 0 ? "r" : "g")}<span>Lợi nhuận dự kiến (DT − EAC)</span><b class="${ng(ln)}">${ty(ln)} <small>${pc(CV("12"))}</small></b>
+    <div class="kpi">${ki("dt")}<span>Doanh thu hợp đồng (trước VAT)</span><b>${sd(A, "ty")}</b><div class="note">HĐ gốc ${ty(CV("1"))} · phụ lục ${ty(CV("2"))}</div></div>
+    <div class="kpi">${ki("nt", "g")}<span>Đã nghiệm thu với CĐT</span><b>${sd(nt, "ty")}</b>${bar(nt, A, "ok")}<div class="note">${pc(nt / A)} doanh thu · còn ${ty(A - nt)}</div></div>
+    <div class="kpi">${ki("cp", "r")}<span>Chi phí đã thực hiện</span><b>${sd(cp, "ty")}</b>${bar(cp, eac, "er")}<div class="note">${pc(cp / eac)} EAC · HĐ đã ký chưa TH ${ty(cam)}</div></div>
+    <div class="kpi ${ln < 0 ? "xau" : "tot"}">${ki("ln", ln < 0 ? "r" : "g")}<span>Lợi nhuận dự kiến (DT − EAC)</span><b class="${ng(ln)}">${sd(ln, "ty")} <small>${sd(CV("12"), "pc")}</small></b>
       <div class="note">Kế hoạch (DT − NS) ${ty(T.ln_kh)} · ${pc(A ? T.ln_kh / A : null)} · chênh <span class="${ng(ln - T.ln_kh)}">${ty(ln - T.ln_kh)}</span></div></div></div>
   <div class="g2">
     <div class="card"><div class="hd"><h3>Giá trị — Chi phí (CVR)</h3><span class="sp"></span><span class="chip">R1_CVR</span></div><div class="pad">
       ${[["Doanh thu điều chỉnh", A, "ok"], ["Ngân sách chi phí hiện hành", ns, ""], ["EAC — chi phí cuối dự kiến", eac, eac > ns ? "er" : ""]].map(([t, v, c]) =>
-        `<div class="cmp"><span>${t}</span>${bar(v, Math.max(A, ns, eac), c)}<b>${tien(v)}</b></div>`).join("")}
-      <div class="cmp2"><div><span>Tiến độ doanh thu</span><b>${pc(nt / A)}</b><div class="note">nghiệm thu / doanh thu</div></div>
-        <div><span>Tiến độ chi phí</span><b>${pc(cp / eac)}</b><div class="note">đã thực hiện / EAC</div></div>
-        <div><span>Đã cam kết</span><b>${pc((cp + cam) / eac)}</b><div class="note">(thực hiện + HĐ chưa TH) / EAC</div></div></div>
+        `<div class="cmp"><span>${t}</span>${bar(v, Math.max(A, ns, eac), c)}<b>${sd(v, "tien")}</b></div>`).join("")}
+      <div class="cmp2"><div><span>Tiến độ doanh thu</span><b>${sd(nt / A, "pc")}</b><div class="note">nghiệm thu / doanh thu</div></div>
+        <div><span>Tiến độ chi phí</span><b>${sd(cp / eac, "pc")}</b><div class="note">đã thực hiện / EAC</div></div>
+        <div><span>Đã cam kết</span><b>${sd((cp + cam) / eac, "pc")}</b><div class="note">(thực hiện + HĐ chưa TH) / EAC</div></div></div>
       <table class="mini">${["3", "3a", "4", "5", "6", "7", "8", "9", "10", "11"].map(k => d.cvr[k] ? `<tr><td class="note">${k}</td><td>${esc(d.cvr[k].ten)}</td><td class="n ${ng(d.cvr[k].gia_tri)}">${tien(d.cvr[k].gia_tri)}</td></tr>` : "").join("")}</table></div></div>
     <div class="card"><div class="hd"><h3>Công nợ & tiền</h3><span class="sp"></span><span class="chip">R1 mục 15–19 · R3</span></div><div class="pad">
       <div class="tien2"><div><h4>Với Chủ đầu tư</h4>${kv("Được thanh toán lũy kế", tien(CV("15")))}${kv("CĐT đang giữ lại", tien(CV("16")))}${kv("Tạm ứng CĐT chưa thu hồi", tien(CV("17")))}</div>
         <div><h4>Với đối tác</h4>${kv("Đã thanh toán lũy kế", tien(ttDT))}${kv("Mình đang giữ lại", tien(CV("19")))}${kv("Tạm ứng chưa hoàn", tien(CV("18")))}</div></div>
-      <div class="net"><span>Chênh tiền theo HSTT (CĐT trả − trả đối tác)</span><b class="${ng(CV("15") - ttDT)}">${tien(CV("15") - ttDT)}</b></div>
+      <div class="net"><span>Chênh tiền theo HSTT (CĐT trả − trả đối tác)</span><b class="${ng(CV("15") - ttDT)}">${sd(CV("15") - ttDT, "tien")}</b></div>
       <p class="note">Tính theo hồ sơ thanh toán đã duyệt — chưa phải tiền đã về / đã chi thật (khung chưa nhập ngày trả).</p></div></div></div>
   <div class="card"><div class="hd"><h3>Dòng tiền theo tháng</h3><span class="sp"></span><span class="chip">R5_DongTien</span></div><div class="pad">${bieuDoTien(d.dong_tien)}</div></div>
   <div class="g2">
@@ -264,5 +278,6 @@ async function tongQuan(force) {
     <tr><th>#</th><th>Phép kiểm</th><th class="n">Vế trái</th><th class="n">Vế phải</th><th>Kết luận</th></tr>
     ${ck.map(c => `<tr><td>${c.so}</td><td>${esc(c.ten)}</td><td class="n">${tien(c.trai)}</td><td class="n">${tien(c.phai)}</td><td><span class="chip ${c.m[0]}">${esc(c.ket_luan)}</span></td></tr>`).join("")}</table></div></details></div>
   ${chan(d)}`;
+  hoatHinh(el);
 }
 const TAB_DAU_RA = {bc: tongQuan, hd: tabHopDong, bill: tabBill, bctc: tabBCTC, dt: tabDoiTac};
