@@ -59,6 +59,8 @@ def doc_khung(path):
         if w[f"D{r}"].value:
             kl, dg = w[f"J{r}"].value, w[f"K{r}"].value
             k["ns"][w[f"D{r}"].value] += kl * dg if isinstance(kl, (int, float)) and isinstance(dg, (int, float)) else num(w[f"L{r}"].value)
+    import cdt
+    k["cdt"] = cdt.doc_ben_cdt(wb, k["nhom_ns"])
     wb.close()
     return k
 
@@ -96,6 +98,8 @@ def khop_dong(l, ds_dong):
     return c[0] if c else None
 
 def kiem(hs, k, van_tay_da_co=()):
+    if hs.get("loai") == "CDT":
+        import cdt; return cdt.kiem_cdt(hs, k, van_tay_da_co)
     pl, co = phan_loai(hs, k)
     S = hs["sheet"]; cv = hs["cover"]; t = hs["tong"] or (0, 0, 0)
     add = lambda muc, lop, vt, a, b, mt: co.append((muc, lop, vt, a, b, mt))

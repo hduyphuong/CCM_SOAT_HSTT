@@ -54,7 +54,7 @@ details{font-size:12.5px}summary{cursor:pointer;color:var(--pri);font-weight:600
 <nav><button class="on" data-t="nap">Nạp &amp; duyệt</button><button data-t="hs">Hồ sơ đã nạp</button><button data-t="bc">Báo cáo</button></nav>
 <main>
   <section id="t-nap">
-    <div class="drop" id="drop"><b>Kéo thả HSTT vào đây</b> hoặc bấm để chọn — nhiều file một lần<br>
+    <div class="drop" id="drop"><b>Kéo thả hồ sơ thanh toán vào đây</b> — đội, thầu phụ, NCC hoặc hồ sơ gửi CĐT (doanh thu) — nhiều file một lần<br>
       <span class="note">File chỉ đi qua trang tới engine trên máy anh; không lưu lên mạng.</span><input type="file" id="f" multiple accept=".xlsx" hidden></div>
     <div id="cards" style="display:flex;flex-direction:column;gap:14px;margin-top:14px"></div>
   </section>
@@ -113,7 +113,10 @@ function the(r) {
       <div class="kv"><span>Đơn vị</span><b>${esc(t.don_vi)}</b></div><div class="kv"><span>Số HĐ trên COVER</span><b>${esc(t.so_hd)}</b></div>
       <div class="kv"><span>Kỳ trước</span><b>${fmt(t.ky_truoc)}</b></div><div class="kv"><span>Kỳ này</span><b class="big">${fmt(t.ky_nay)}</b></div>
       <div class="kv"><span>Lũy kế</span><b>${fmt(t.luy_ke)}</b></div><div class="kv"><span>VAT</span><b>${t.vat != null ? (t.vat * 100).toFixed(0) + "%" : "—"}</b></div>
-      <div class="kv"><span>Tạm ứng chưa hoàn (HSTT)</span><b>${fmt(t.du_tru_tam_ung)}</b></div>
+      ${t.tien ? `<div class="kv"><span>Có VAT</span><b>${fmt(t.tien.th_vat)}</b></div><div class="kv"><span>Thu hồi tạm ứng</span><b>${fmt(t.tien.thu_hoi)}</b></div>
+        <div class="kv"><span>Khấu trừ (ghi CHI bên đối tác)</span><b>${fmt(t.tien.khau_tru)}</b></div><div class="kv"><span>Giữ lại</span><b>${fmt(t.tien.giu_lai)}</b></div>
+        <div class="kv"><span>Đề nghị CĐT thanh toán</span><b class="big">${fmt(t.tien.de_nghi)}</b></div>`
+        : `<div class="kv"><span>Tạm ứng chưa hoàn (HSTT)</span><b>${fmt(t.du_tru_tam_ung)}</b></div>`}
       ${kh ? `<details><summary>Sẽ ghi ${kh.dong_tt.length} dòng${kh.dong_hd_moi.length ? " + " + kh.dong_hd_moi.length + " dòng HĐ phát sinh" : ""}</summary>
         <table><tr><th>Loại</th><th>Dòng</th><th class="n">KL</th><th class="n">ĐG / tiền</th></tr>${kh.dong_tt.map(x =>
         `<tr><td>${esc(x.loai)}</td><td>${esc(x.stt ?? "")}</td><td class="n">${fmt(x.kl)}</td><td class="n">${fmt(x.dg ?? x.so_tien)}</td></tr>`).join("")}</table></details>` : ""}

@@ -8,7 +8,7 @@ Trang web (GitHub Pages) + **engine chạy trên máy anh**. Hồ sơ thanh toá
 3. Lần đầu Chrome hỏi **"cho phép truy cập thiết bị trong mạng nội bộ"** → bấm **Cho phép** (Chrome 142+ bắt buộc, chỉ hỏi 1 lần).
 
 ## Luồng
-Nạp HSTT → phân loại (HĐ, đối tác, đợt, loại hồ sơ) → tự kiểm 4 lớp (hồ sơ · theo HĐ · số học · đợt trước + ngân sách) → anh duyệt
+Nạp HSTT (đội / NTP / NCC) **hoặc hồ sơ thanh toán gửi CĐT (doanh thu)** → phân loại (HĐ, đối tác, đợt, loại hồ sơ) → tự kiểm 4 lớp (hồ sơ · theo HĐ · số học · đợt trước + ngân sách) → anh duyệt
 (**Đồng ý** ghi sổ · **Yêu cầu chỉnh sửa** · **Trả đội**; còn cờ CHẶN thì khoá Đồng ý) → ghi sổ vào file khung Excel → báo cáo.
 
 Engine chỉ nhận lệnh từ trang ghi trong `WEBAPP_SOAT_HSTT_DATA\trang.txt` (VD `https://ten-tai-khoan.github.io`) và từ `localhost`.
@@ -29,5 +29,6 @@ Backup trước · Excel COM `DispatchEx` (không đụng Excel đang mở) · c
 | `engine/doc_hstt.py` | đọc HSTT đội / NTP / NCC (tự dò cột theo tiêu đề) |
 | `engine/kiem.py` | đọc khung · phân loại · 4 lớp kiểm |
 | `engine/ghi_so.py` | kế hoạch ghi + ghi sổ bằng Excel COM |
+| `engine/cdt.py` | phía CĐT: đọc hồ sơ gửi CĐT, kiểm với BOQ HĐ CĐT; khấu trừ/phạt/cấp vật tư ghi CHI bên đối tác |
 | `engine/app.py` | API (stdlib, không cần cài thêm gói) |
 | `docs/index.html` | giao diện |

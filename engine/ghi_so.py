@@ -1,6 +1,7 @@
-"""GHI SỔ 1 HSTT đã duyệt vào FILE KHUNG (Excel COM).
+"""GHI SỔ 1 hồ sơ đã duyệt vào FILE KHUNG (Excel COM).
 Quy tắc: backup trước · DispatchEx (không đụng Excel anh đang mở, CẤM taskkill) · chép dòng mẫu để giữ công thức + định dạng ·
-tính lại rồi TỰ KIỂM lũy kế = HSTT (≤10đ) · lệch ⇒ đóng KHÔNG LƯU (ghi đủ hoặc không ghi gì)."""
+tính lại rồi TỰ KIỂM lũy kế = hồ sơ (≤10đ) cho từng phần · lệch ⇒ đóng KHÔNG LƯU (ghi đủ hoặc không ghi gì).
+Kế hoạch gồm nhiều PHẦN: {tt: sheet thanh toán, ct: sheet dòng HĐ, ma_hd, dong_moi, dong_tt, lk_hstt}."""
 import os, shutil, datetime as dt
 import pythoncom, win32com.client as w32
 from doc_hstt import na
@@ -9,6 +10,13 @@ XL_UP = -4162
 
 def ke_hoach(hs, kq, k):
     """Tính các dòng sẽ ghi (chưa đụng file) — để anh xem trước khi bấm Đồng ý."""
+    if hs.get("loai") == "CDT":
+        import cdt; return cdt.ke_hoach_cdt(hs, kq, k)
+    kh = _ke_hoach_doi_tac(hs, kq, k)
+    kh["phan"] = [dict(tt="N9_TT_DoiTac", ct="N7_HD_DoiTac_ChiTiet", ma_hd=kh["ma_hd"], dong_moi=kh["dong_hd_moi"], dong_tt=kh["dong_tt"], lk_hstt=kh["lk_hstt"])]
+    return kh
+
+def _ke_hoach_doi_tac(hs, kq, k):
     ma = kq["phan_loai"]["ma_hd"]; cv = hs["cover"]; dot = cv["dot"]; ngay = cv["ngay"]
     ps_co = [d["stt"] for d in k["dong"].get(ma, []) if str(d["stt"]).startswith("PS")]
     n_ps = max([int(s[2:]) for s in ps_co if s[2:].isdigit()] or [0])
@@ -42,6 +50,32 @@ def ke_hoach(hs, kq, k):
     for x in tt: x.update(ma_hd=ma, dot=dot, ngay=ngay)
     return dict(ma_hd=ma, dong_hd_moi=dong_moi, dong_tt=tt, lk_hstt=(hs["tong"] or (0, 0, 0))[2])
 
+def _ghi_phan(wb, ph, ten_file):
+    w7, w9, ma = wb.Worksheets(ph["ct"]), wb.Worksheets(ph["tt"]), ph["ma_hd"]
+    for d in ph["dong_moi"]:                                          # dòng HĐ phát sinh mới — chép dòng cuối để giữ công thức
+        last = w7.Cells(w7.Rows.Count, 1).End(XL_UP).Row; r = last + 1
+        w7.Range(f"A{last}:O{last}").Copy(w7.Range(f"A{r}"))
+        for col, v in (("A", ma), ("B", d["stt"]), ("D", "NGOAI_HD"), ("E", d["noi_dung"]), ("F", d["dvt"]), ("G", None),
+                       ("H", d["don_gia"]), ("J", ""), ("K", ""), ("O", f"webapp — phát sinh từ {ten_file[:40]}")):
+            w7.Range(f"{col}{r}").Value = v
+    for x in ph["dong_tt"]:                                           # dòng thanh toán
+        last = w9.Cells(w9.Rows.Count, 1).End(XL_UP).Row; r = last + 1
+        w9.Range(f"A{last}:R{last}").Copy(w9.Range(f"A{r}"))
+        ngay = dt.datetime(x["ngay"].year, x["ngay"].month, x["ngay"].day) if x["ngay"] else None
+        dong = x["stt"] is not None
+        vals = {"A": ma, "B": x["dot"], "C": ngay, "D": x["loai"], "E": x["stt"] if dong else None,
+                "F": f"=IFERROR(VLOOKUP(A{r}&\"|\"&E{r},'{ph['ct']}'!$C:$E,3,0),\"\")" if dong else x["ghi"],
+                "G": f"=IFERROR(VLOOKUP(A{r}&\"|\"&E{r},'{ph['ct']}'!$C:$F,4,0),\"\")" if dong else None,
+                "H": x["kl"], "I": x["dg"], "J": x["so_tien"], "P": None, "R": f"webapp · {ten_file[:50]}" + (f" · {x['ghi']}" if x["ghi"] and dong else "")}
+        for col, v in vals.items():
+            c = w9.Range(f"{col}{r}")
+            if isinstance(v, str) and v.startswith("="): c.Formula = v
+            else: c.Value = v
+
+def _lk(app, w9, ma):
+    f = app.WorksheetFunction
+    return sum(f.SumIfs(w9.Range("K2:K5000"), w9.Range("A2:A5000"), ma, w9.Range("D2:D5000"), t) for t in ("THUC_HIEN", "DIEU_CHINH"))
+
 def ghi(path, kh, ten_file, thu_muc_backup):
     os.makedirs(thu_muc_backup, exist_ok=True)
     bk = os.path.join(thu_muc_backup, f"{os.path.splitext(os.path.basename(path))[0]}_truoc_{dt.datetime.now():%Y%m%d_%H%M%S}.xlsx")
@@ -51,38 +85,18 @@ def ghi(path, kh, ten_file, thu_muc_backup):
     wb = None
     try:
         wb = app.Workbooks.Open(os.path.abspath(path))
-        w7, w9 = wb.Worksheets("N7_HD_DoiTac_ChiTiet"), wb.Worksheets("N9_TT_DoiTac")
-        ma = kh["ma_hd"]
-        # dòng HĐ phát sinh mới (N7) — chép dòng cuối để giữ công thức
-        for d in kh["dong_hd_moi"]:
-            last = w7.Cells(w7.Rows.Count, 1).End(XL_UP).Row; r = last + 1
-            w7.Range(f"A{last}:O{last}").Copy(w7.Range(f"A{r}"))
-            for col, v in (("A", ma), ("B", d["stt"]), ("D", "NGOAI_HD"), ("E", d["noi_dung"]), ("F", d["dvt"]), ("G", None),
-                           ("H", d["don_gia"]), ("J", ""), ("K", ""), ("O", f"webapp — phát sinh từ {ten_file[:40]}")):
-                w7.Range(f"{col}{r}").Value = v
-        # dòng thanh toán (N9)
-        for x in kh["dong_tt"]:
-            last = w9.Cells(w9.Rows.Count, 1).End(XL_UP).Row; r = last + 1
-            w9.Range(f"A{last}:R{last}").Copy(w9.Range(f"A{r}"))
-            ngay = dt.datetime(x["ngay"].year, x["ngay"].month, x["ngay"].day) if x["ngay"] else None
-            dong = x["stt"] is not None
-            vals = {"A": ma, "B": x["dot"], "C": ngay, "D": x["loai"], "E": x["stt"] if dong else None,
-                    "F": f"=IFERROR(VLOOKUP(A{r}&\"|\"&E{r},'N7_HD_DoiTac_ChiTiet'!$C:$E,3,0),\"\")" if dong else x["ghi"],
-                    "G": f"=IFERROR(VLOOKUP(A{r}&\"|\"&E{r},'N7_HD_DoiTac_ChiTiet'!$C:$F,4,0),\"\")" if dong else None,
-                    "H": x["kl"], "I": x["dg"], "J": x["so_tien"], "P": None, "R": f"webapp · {ten_file[:50]}" + (f" · {x['ghi']}" if x["ghi"] and dong else "")}
-            for col, v in vals.items():
-                c = w9.Range(f"{col}{r}")
-                if isinstance(v, str) and v.startswith("="): c.Formula = v
-                else: c.Value = v
+        for ph in kh["phan"]: _ghi_phan(wb, ph, ten_file)
         app.CalculateFullRebuild()
-        # tự kiểm: lũy kế thực hiện của HĐ trong khung = lũy kế trên HSTT
-        lk = app.WorksheetFunction.SumIfs(w9.Range("K2:K5000"), w9.Range("A2:A5000"), ma, w9.Range("D2:D5000"), "THUC_HIEN") + \
-             app.WorksheetFunction.SumIfs(w9.Range("K2:K5000"), w9.Range("A2:A5000"), ma, w9.Range("D2:D5000"), "DIEU_CHINH")
-        if abs(lk - kh["lk_hstt"]) > NGUONG:
-            wb.Close(False); wb = None
-            return dict(ok=False, ly_do=f"Sau khi ghi, lũy kế trong khung {lk:,.0f} ≠ HSTT {kh['lk_hstt']:,.0f} — KHÔNG lưu, file giữ nguyên", backup=bk)
+        lk_chinh = None
+        for ph in kh["phan"]:                                         # tự kiểm từng phần có số đối chiếu
+            if ph["lk_hstt"] is None: continue
+            lk = _lk(app, wb.Worksheets(ph["tt"]), ph["ma_hd"]); lk_chinh = lk if lk_chinh is None else lk_chinh
+            if abs(lk - ph["lk_hstt"]) > NGUONG:
+                wb.Close(False); wb = None
+                return dict(ok=False, ly_do=f"Sau khi ghi, lũy kế {ph['ma_hd']} trong khung {lk:,.0f} ≠ hồ sơ {ph['lk_hstt']:,.0f} — KHÔNG lưu, file giữ nguyên", backup=bk)
         wb.Save(); wb.Close(False); wb = None
-        return dict(ok=True, luy_ke_khung=lk, so_dong_tt=len(kh["dong_tt"]), so_dong_hd_moi=len(kh["dong_hd_moi"]), backup=bk)
+        return dict(ok=True, luy_ke_khung=lk_chinh, so_dong_tt=sum(len(p["dong_tt"]) for p in kh["phan"]),
+                    so_dong_hd_moi=sum(len(p["dong_moi"]) for p in kh["phan"]), backup=bk)
     finally:
         if wb is not None: wb.Close(False)
         app.Quit()

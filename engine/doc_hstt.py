@@ -51,6 +51,9 @@ def doc_cover(wb):
 
 def doc_file(path):
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    import cdt
+    if cdt.la_claim_cdt(wb):                                   # hồ sơ thanh toán GỬI CĐT (doanh thu)
+        kq = cdt.doc_claim(path, wb); wb.close(); return kq
     cv = doc_cover(wb)
     sn = next((s for s in wb.sheetnames if na(s) in ("05.GIA TRI", "BANG KL") or re.fullmatch(r"\d+\.BANG KL", na(s))), None)
     if not sn: wb.close(); raise ValueError("Không thấy sheet bảng giá trị / bảng KL (05.Giá trị hoặc 5.BẢNG KL)")
