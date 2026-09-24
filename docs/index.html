@@ -40,6 +40,7 @@ details{font-size:12.5px}summary{cursor:pointer;color:var(--pri);font-weight:600
 .kpi{background:var(--s);border:1px solid var(--ru);border-radius:10px;padding:12px 14px}.kpi span{font-size:12px;color:var(--mu)}.kpi b{display:block;font-size:19px;color:var(--nav);font-variant-numeric:tabular-nums}
 .neg{color:var(--er)!important}.empty{color:var(--fa);text-align:center;padding:30px}
 .hide{display:none}
+tr.click{cursor:pointer}tr.click:hover td{background:#f3f6fb}tr.sel td{background:#e8eefc;font-weight:600}
 @media(max-width:820px){.body{grid-template-columns:1fr}.left{border-right:0;border-bottom:1px solid var(--ru)}}
 </style>
 </head>
@@ -58,7 +59,8 @@ details{font-size:12.5px}summary{cursor:pointer;color:var(--pri);font-weight:600
       <span class="note">File chỉ đi qua trang tới engine trên máy anh; không lưu lên mạng.</span><input type="file" id="f" multiple accept=".xlsx" hidden></div>
     <div id="cards" style="display:flex;flex-direction:column;gap:14px;margin-top:14px"></div>
   </section>
-  <section id="t-hs" class="hide"><div class="card"><div class="right"><table id="tb-hs"></table></div></div></section>
+  <section id="t-hs" class="hide"><div class="card"><div class="right"><table id="tb-hs"></table></div></div>
+    <p class="note">Bấm vào một dòng để xem chi tiết hồ sơ (cờ, số liệu, kế hoạch ghi sổ) và duyệt tiếp nếu còn chờ.</p><div id="hs-ct"></div></section>
   <section id="t-bc" class="hide"><div class="grid" id="kpi"></div><div class="card" style="margin-top:14px"><div class="right"><table id="tb-ck"></table></div></div>
     <p class="note" id="bc-note"></p></section>
 </main>
@@ -143,12 +145,21 @@ function the(r) {
   });
   return el;
 }
+const TT = {CHO_DUYET: ["Chờ duyệt", ""], DA_GHI_SO: ["Đã ghi sổ", "ok"], TRA_DOI: ["Trả đội", "er"], YEU_CAU_SUA: ["Yêu cầu sửa", "wa"]};
 async function hoSo() {
   try { const ds = await api("/ho-so?du_an=" + $("#da").value);
-    $("#tb-hs").innerHTML = `<tr><th>Nạp lúc</th><th>File</th><th>HĐ</th><th>Đợt</th><th class="n">Kỳ này</th><th>Cờ</th><th>Trạng thái</th></tr>` + (ds.length ? ds.map(r =>
-      `<tr><td>${esc(r.luc)}</td><td>${esc(r.ten)}</td><td>${esc(r.phan_loai?.ma_hd)}</td><td>${esc(r.tom_tat?.dot)}</td><td class="n">${fmt(r.tom_tat?.ky_nay)}</td>
-       <td>${r.co.filter(c => c.muc === "CHAN").length} chặn · ${r.co.filter(c => c.muc !== "CHAN").length} lưu ý</td><td>${esc(r.trang_thai)}</td></tr>`).join("")
-      : `<tr><td colspan="7" class="empty">Chưa nạp hồ sơ nào</td></tr>`) } catch (e) { $("#tb-hs").innerHTML = `<tr><td class="empty">${esc(e.message)}</td></tr>` }
+    $("#tb-hs").innerHTML = `<tr><th>Nạp lúc</th><th>File</th><th>HĐ</th><th>Đợt</th><th class="n">Kỳ này</th><th>Cờ</th><th>Trạng thái</th></tr>` + (ds.length ? ds.map((r, i) => {
+      const nc = r.co.filter(c => c.muc === "CHAN").length, tt = TT[r.trang_thai] || [r.trang_thai, ""];
+      return `<tr class="click" data-i="${i}" title="Bấm để xem chi tiết"><td>${esc(r.luc.replace("T", " "))}</td><td>${esc(r.ten)}</td><td>${esc(r.phan_loai?.ma_hd || "—")}</td>
+       <td>${esc(r.tom_tat?.dot)}</td><td class="n">${fmt(r.tom_tat?.ky_nay)}</td>
+       <td>${nc ? `<span class="chip er">${nc} chặn</span> ` : ""}<span class="chip wa">${r.co.length - nc} lưu ý</span></td><td><span class="chip ${tt[1]}">${tt[0]}</span></td></tr>` }).join("")
+      : `<tr><td colspan="7" class="empty">Chưa nạp hồ sơ nào</td></tr>`);
+    $("#hs-ct").innerHTML = "";
+    document.querySelectorAll("#tb-hs tr.click").forEach(tr => tr.onclick = () => {
+      document.querySelectorAll("#tb-hs tr.click").forEach(x => x.classList.toggle("sel", x === tr));
+      const box = $("#hs-ct"); box.innerHTML = ""; box.appendChild(the(ds[+tr.dataset.i])); box.scrollIntoView({behavior: "smooth", block: "start"});
+    });
+  } catch (e) { $("#tb-hs").innerHTML = `<tr><td class="empty">${esc(e.message)}</td></tr>` }
 }
 async function baoCao() {
   try { const b = await api("/bao-cao?du_an=" + $("#da").value);
