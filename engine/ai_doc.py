@@ -44,7 +44,9 @@ def doc(path, cty="(chưa khai báo)", schema=None, huong_dan=None, timeout=1500
             shutil.copy2(path, os.path.join(d, "hs.pdf"))
             yeu_cau = "Đọc file hs.pdf trong thư mục hiện tại bằng công cụ Read, lần lượt theo tham số pages (tối đa 20 trang/lần) tới HẾT file, rồi trả kết quả."
         elif duoi in (".xlsx", ".xlsm"):
-            yeu_cau = "Nội dung file Excel (đã trích thành văn bản):\n" + trich_excel(path)
+            open(os.path.join(d, "hs.txt"), "w", encoding="utf-8").write(trich_excel(path))      # KHÔNG nhét vào dòng lệnh: Windows giới hạn ~32k ký tự (WinError 206)
+            yeu_cau = ("Đọc file hs.txt trong thư mục hiện tại bằng công cụ Read (nội dung file Excel đã trích thành văn bản: '=== SHEET: tên' rồi mỗi dòng "
+                       "là các ô cách nhau bởi ' | '). File có thể dài — đọc tiếp bằng tham số offset/limit tới HẾT file, rồi trả kết quả.")
         else: raise RuntimeError(f"Chưa hỗ trợ AI đọc đuôi {duoi}")
         cmd = ["claude", "-p", yeu_cau, "--output-format", "json", "--json-schema", json.dumps(schema or SCHEMA_NEN, ensure_ascii=False),
                "--system-prompt", (huong_dan or HUONG_DAN).format(cty=cty), "--setting-sources", "project", "--tools", "Read",

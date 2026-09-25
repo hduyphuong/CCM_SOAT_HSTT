@@ -12,6 +12,7 @@ LOAI = {   # mã: (tên hiển thị, thư mục tương đối — {dt} = <LOAI
     "GOI_THAU":  ("Phân chia gói thầu", "01_THIET_LAP/03_GOI_THAU"),
     "CHON_THAU": ("Báo giá chọn thầu (chưa có HĐ)", "01_THIET_LAP/03_GOI_THAU/CHON_THAU/{goi}"),
     "HD_CDT":    ("Hợp đồng / PLHĐ với CĐT", "10_THU_CDT/HOP_DONG"),
+    "BAO_GIA_CDT": ("Báo giá / đề xuất giá gửi CĐT", "10_THU_CDT/BAO_GIA"),
     "HD_DOI_TAC": ("Hợp đồng / PLHĐ đối tác", "20_CHI_DOI_TAC/{dt}/HOP_DONG"),
     "BAO_GIA":   ("Báo giá / bảng giá đối tác", "20_CHI_DOI_TAC/{dt}/BAO_GIA"),
     "QUYET_TOAN": ("Hồ sơ quyết toán đối tác", "20_CHI_DOI_TAC/{dt}/QUYET_TOAN"),
@@ -122,6 +123,8 @@ def danh_gia(kq, loai, loai_chon, dm):
     co = []; C = lambda m, t: co.append(dict(muc=m, mo_ta=t))
     la = dong_la(kq.get("bang")); tong = sum(tien_dong(r) for r in la)
     if loai_chon and AI_SANG_LOAI.get(kq.get("loai")) != loai_chon: C("LUU_Y", f"Anh chọn loại {LOAI[loai_chon][0]} nhưng app đọc thấy là {kq.get('loai')} — {kq.get('ly_do_loai') or ''}")
+    if loai not in ("HD_CDT", "HD_DOI_TAC"):                          # % thanh toán chỉ có nghĩa với hợp đồng ⇒ bỏ cờ nhiễu
+        co[:] = [c for c in co if not re.match(r"^(vat_pct|pct_\w+): AI trả", c["mo_ta"])]
     if loai in ("HD_CDT", "HD_DOI_TAC"):
         for f, t in (("so_hd", "số hợp đồng"), ("ngay_ky", "ngày ký"), ("doi_tac_ten", "tên đối tác")):
             if not kq.get(f): C("CHAN", f"Không đọc được {t} — anh kiểm lại PDF")
@@ -138,7 +141,8 @@ def danh_gia(kq, loai, loai_chon, dm):
     if loai in ("BOQ_CDT", "NGAN_SACH", "GOI_THAU"):
         if not la: C("CHAN", "Không đọc được dòng nào trong bảng")
         t = kq.get("tong_ghi_tren_file")
-        if t and la and abs(tong - t) > max(1000, t * 0.0005): C("LUU_Y", f"Σ các dòng {tong:,.0f} ≠ tổng ghi trên file {t:,.0f} (lệch {tong - t:,.0f})")
+        if t and la and abs(tong - t) > t * 0.005: C("CHAN", f"Σ các dòng {tong:,.0f} ≠ tổng ghi trên file {t:,.0f} (lệch {abs(tong - t) / t:.0%}) — file nhiều sheet, AI có thể gom lẫn dòng; cần đọc đúng sheet")
+        elif t and la and abs(tong - t) > 1000: C("LUU_Y", f"Σ các dòng {tong:,.0f} ≠ tổng ghi trên file {t:,.0f} (làm tròn)")
     for x in kq.get("khong_chac") or []: C("LUU_Y", f"AI đọc không chắc: {x}")
     if kq.get("loai") == "HSTT": C("LUU_Y", "Đây là HSTT — nạp ở mục ① Nạp & duyệt (Excel để soát, PDF làm bản ký)")
     return co, dict(so_dong=len(la), tong_dong=tong)
@@ -191,8 +195,13 @@ def ap_ket_qua(data, da, i, khung, kq, meta):
     elif ma_dt and not loai_dt: loai_dt = kq.get("loai_doi_tac")
     if loai == "HD_CDT" and not ma_dt:                                  # HĐ doanh thu: đối tác = CĐT / thầu chính
         d = khop_doi_tac(kq.get("doi_tac_ten") or "", dm["doi_tac"]); ma_dt, loai_dt = (d["ma"] if d else ma_de_xuat(kq.get("doi_tac_ten") or "")), "CDT"
+    kw = tu_khoa_cty(_CFG.get("cty"))
+    if loai == "BAO_GIA" and (la_cty_minh(kq.get("doi_tac_ten"), kw) or la_cty_minh(kq.get("ben_giao"), kw)):   # báo giá CÔNG TY MÌNH lập ⇒ gửi CĐT (doanh thu)
+        loai, ma_dt, loai_dt = "BAO_GIA_CDT", None, None
+        co0 = [c for c in co0 if "trùng tên công ty mình" not in c["mo_ta"]] + [dict(muc="LUU_Y", mo_ta="Báo giá do công ty mình lập ⇒ xếp là báo giá / đề xuất giá gửi CĐT")]
     if loai == "BAO_GIA" and not (ma_dt and LOAI_DT.get(loai_dt or "")): loai = "CHON_THAU"
     co, tk = danh_gia(kq, loai, rec.get("loai_chon"), dm); co = co0 + co
+    if loai not in ("HD_CDT", "HD_DOI_TAC"): co = [c for c in co if not re.match(r"^(vat_pct|pct_\w+): AI trả", c["mo_ta"])]   # % chỉ có nghĩa với HĐ
     moi_dt = bool(ma_dt) and not any(d["ma"] == ma_dt for d in dm["doi_tac"])
     if moi_dt and loai in ("HD_DOI_TAC", "BAO_GIA", "QUYET_TOAN"): co.append(dict(muc="LUU_Y", mo_ta=f"Đối tác mới (chưa có trong khung) — app đề xuất mã {ma_dt}, loại {loai_dt}"))
     rel = thu_muc_dich(loai, ma_dt, loai_dt, rec.get("goi")) or "_HE_THONG/cho_phan_loai"
