@@ -347,7 +347,7 @@ function the(r) {
     <button class="btn ok" ${nChan || r.trang_thai !== "CHO_DUYET" ? "disabled" : ""} data-a="DONG_Y" title="${nChan ? "Còn cờ CHẶN — nút Đồng ý bị khoá" : "Ghi sổ vào file khung"}">✓ Đồng ý — ghi sổ</button>
     <button class="btn fix" ${r.trang_thai === "DA_GHI_SO" ? "disabled" : ""} data-a="YEU_CAU_SUA">✎ Yêu cầu chỉnh sửa</button>
     <button class="btn no" ${r.trang_thai === "DA_GHI_SO" ? "disabled" : ""} data-a="TRA_DOI">✕ Trả đội</button>
-    <span class="res ${r.ket_qua ? (r.ket_qua.ok ? "ok" : "er") : ""}">${r.ket_qua ? (r.ket_qua.ok ? `Đã ghi ${r.ket_qua.so_dong_tt} dòng · lũy kế khung ${fmt(r.ket_qua.luy_ke_khung)} · đã backup` : esc(r.ket_qua.ly_do)) : r.ly_do ? "Lý do: " + esc(r.ly_do) : ""}</span>
+    <span class="res ${r.ket_qua ? (r.ket_qua.ok ? "ok" : "er") : ""}">${r.ket_qua ? (r.ket_qua.ok ? `Đã ghi ${r.ket_qua.so_dong_tt} dòng · lũy kế khung ${fmt(r.ket_qua.luy_ke_khung)} · đã backup${r.luu_tru ? " · đã xếp vào " + esc(r.luu_tru.split("\\").slice(-5, -1).join("\\")) : ""}` : esc(r.ket_qua.ly_do)) : r.ly_do ? "Lý do: " + esc(r.ly_do) : ""}</span>
     ${nChan ? `<span class="note">Còn cờ CHẶN nên nút Đồng ý bị khoá.</span>` : ""}
   </div>`;
   el.querySelectorAll("button[data-a]").forEach(b => b.onclick = async () => {

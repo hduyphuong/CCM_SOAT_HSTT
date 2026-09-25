@@ -9,12 +9,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json, os, sys, base64, datetime as dt, threading, traceback
 from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC
+import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC, cay as C
 
 PORT = 8765
 DATA = r"D:\QLCP_HD\WEBAPP_SOAT_HSTT_DATA"
-CAU_HINH = os.path.join(DATA, "du_an.json")          # {"DU_AN_A": {"ten": "...", "khung": "<đường dẫn file khung .xlsx>"}}
-TRANG_TXT = os.path.join(DATA, "trang.txt")          # 1 dòng: https://<tài-khoản>.github.io — trang khác KHÔNG gọi được engine
+def _cfg(ten):                                        # cấu hình ở _CAU_HINH\ (cây mới); còn file ở gốc (cây cũ) thì vẫn đọc được
+    moi = os.path.join(DATA, "_CAU_HINH", ten); return moi if os.path.exists(moi) or not os.path.exists(os.path.join(DATA, ten)) else os.path.join(DATA, ten)
+CAU_HINH = _cfg("du_an.json")          # {"DU_AN_A": {"ten": "...", "khung": "<đường dẫn file khung .xlsx>"}}
+TRANG_TXT = _cfg("trang.txt")          # 1 dòng: https://<tài-khoản>.github.io — trang khác KHÔNG gọi được engine
 TRANG = open(TRANG_TXT, encoding="utf-8").read().strip().rstrip("/") if os.path.exists(TRANG_TXT) else ""
 KHOA = threading.Lock()                               # 1 lần ghi sổ tại 1 thời điểm
 
@@ -22,15 +24,16 @@ def _json(o):
     if isinstance(o, (dt.date, dt.datetime)): return o.isoformat()
     raise TypeError(type(o))
 def du_an(): return json.load(open(CAU_HINH, encoding="utf-8")) if os.path.exists(CAU_HINH) else {}
-def so_nap_path(da): return os.path.join(DATA, da, "so_nap.json")
+def he_thong(da): return os.path.join(DATA, da, "_HE_THONG")             # engine quản lý — không sửa tay
+def so_nap_path(da): return os.path.join(he_thong(da), "so_nap.json")
 def so_nap(da): p = so_nap_path(da); return json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {}
 def luu_so(da, s):
-    os.makedirs(os.path.join(DATA, da), exist_ok=True)
+    os.makedirs(he_thong(da), exist_ok=True)
     json.dump(s, open(so_nap_path(da), "w", encoding="utf-8"), ensure_ascii=False, indent=1, default=_json)
 
 def xu_ly_nap(b):
     da, ten = b["du_an"], os.path.basename(b["ten"])
-    cfg = du_an()[da]; thu_muc = os.path.join(DATA, da, "nap"); os.makedirs(thu_muc, exist_ok=True)
+    cfg = du_an()[da]; thu_muc = os.path.join(he_thong(da), "nap"); os.makedirs(thu_muc, exist_ok=True)
     raw = base64.b64decode(b["b64"]); tam = os.path.join(thu_muc, "_tam_" + ten)
     open(tam, "wb").write(raw); vt = D.van_tay(tam)
     s = so_nap(da); i = vt[:12]
@@ -68,9 +71,12 @@ def xu_ly_duyet(b):
             k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", []); kq = K.kiem(hs, k)                  # kiểm lại ngay trước khi ghi (khung có thể đã đổi)
             if any(c["muc"] == "CHAN" for c in kq["co"]): return dict(ok=False, ly_do="Kiểm lại trước khi ghi phát sinh cờ CHẶN", co=kq["co"])
             kh = G.ke_hoach(hs, kq, k)
-            kq_ghi = G.ghi(cfg["khung"], kh, rec["ten"], os.path.join(DATA, da, "backup"))
+            kq_ghi = G.ghi(cfg["khung"], kh, rec["ten"], os.path.join(os.path.dirname(cfg["khung"]), "_backup"))
         rec["ket_qua"] = kq_ghi
-        if kq_ghi["ok"]: rec["trang_thai"] = "DA_GHI_SO"
+        if kq_ghi["ok"]:
+            rec["trang_thai"] = "DA_GHI_SO"
+            try: rec["luu_tru"] = C.luu_tru(DATA, da, rec, cfg["khung"])          # xếp bản gốc vào …\HSTT\Dxx_YYYYMMDD\ của đúng đối tác
+            except Exception as e: rec["luu_tru_loi"] = str(e)
     else:
         rec["trang_thai"] = hd; rec["ly_do"] = b.get("ly_do") or ""
     rec["luc_duyet"] = dt.datetime.now().isoformat(timespec="seconds"); s[i] = rec; luu_so(da, s)
@@ -124,6 +130,9 @@ class H(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     for st in (sys.stdout, sys.stderr): st.reconfigure(encoding="utf-8", errors="replace")   # console Windows cp1252 không in được tiếng Việt
     os.makedirs(DATA, exist_ok=True)
+    for da_, v in du_an().items():                                   # bổ sung cây thư mục (idempotent) — đối tác mới có HĐ thì có folder
+        try: C.tao_cay(DATA, da_, v.get("khung"))
+        except Exception as e: print(f"[cây] {da_}: {e}")
     port = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
     print(f"Engine soát HSTT chạy tại http://127.0.0.1:{port}  ·  dữ liệu: {DATA}")
     ThreadingHTTPServer(("127.0.0.1", port), H).serve_forever()
