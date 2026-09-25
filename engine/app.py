@@ -50,6 +50,9 @@ def luu_so(da, s):
 
 def xu_ly_nap(b):
     da, ten = b["du_an"], os.path.basename(b["ten"])
+    if not ten.lower().endswith((".xlsx", ".xlsm")):              # PDF / Word / ảnh: chưa có luồng đọc ⇒ báo rõ, KHÔNG lưu file mồ côi
+        raise ValueError(f"'{ten}' không phải HSTT dạng Excel. Hiện webapp chỉ nạp HSTT (.xlsx). Hợp đồng, BoQ, ngân sách, báo giá (PDF/Excel) "
+                         "sẽ nạp được ở chức năng NẠP HỒ SƠ NỀN — tạm thời anh bỏ file vào đúng folder trên Drive.")
     cfg = du_an()[da]; thu_muc = os.path.join(he_thong(da), "nap"); os.makedirs(thu_muc, exist_ok=True)
     raw = base64.b64decode(b["b64"]); tam = os.path.join(thu_muc, "_tam_" + ten)
     open(tam, "wb").write(raw); vt = D.van_tay(tam)

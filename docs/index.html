@@ -307,6 +307,13 @@ drop.ondrop = e => { e.preventDefault(); drop.classList.remove("hot"); nap([...e
 const b64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result.split(",")[1]); r.onerror = no; r.readAsDataURL(f) });
 async function nap(files) {
   for (const f of files) {
+    if (!/\.xlsx?m?$/i.test(f.name) || /\.xls$/i.test(f.name)) {           // chặn sớm file không phải HSTT Excel (.xlsx/.xlsm)
+      const w = document.createElement("div"); w.className = "card";
+      w.innerHTML = `<div class="hd"><h3>${esc(f.name)}</h3><span class="chip wa">Chưa hỗ trợ loại file này</span></div><div class="pad note">Webapp hiện chỉ nạp
+        <b>HSTT dạng Excel (.xlsx)</b>. Hợp đồng, BoQ, ngân sách, báo giá (PDF/Excel) sẽ nạp được ở chức năng <b>Nạp hồ sơ nền</b> — tạm thời anh bỏ file vào đúng folder trên Drive
+        (VD HĐ với CĐT → <code>10_THU_CDT › HOP_DONG</code>, HĐ đối tác → <code>20_CHI_DOI_TAC › &lt;đối tác&gt; › HOP_DONG</code>).</div>`;
+      $("#cards").prepend(w); continue;
+    }
     const el = document.createElement("div"); el.className = "card"; el.innerHTML = `<div class="hd"><h3>${esc(f.name)}</h3><span class="chip">đang đọc & kiểm…</span></div>`;
     $("#cards").prepend(el);
     try { el.replaceWith(the(await api("/nap", {du_an: $("#da").value, ten: f.name, b64: await b64(f)}))) }
