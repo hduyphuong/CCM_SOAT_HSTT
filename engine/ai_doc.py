@@ -9,7 +9,7 @@ DONG = {"type": "object", "properties": {"stt": S, "noi_dung": S, "dvt": S, "kl"
 SCHEMA_NEN = {"type": "object", "properties": {
     "loai": {"type": "string", "enum": ["HD_CDT", "HD_DOI_TAC", "PLHD_CDT", "PLHD_DOI_TAC", "BOQ_CDT", "NGAN_SACH", "GOI_THAU", "BAO_GIA",
                                          "QUYET_TOAN", "BIEN_BAN", "TO_TRINH", "HSTT", "KHAC"]},
-    "ly_do_loai": S, "so_trang": I, "so_hd": S, "so_hd_goc": S, "ngay_ky": S, "ben_giao": S, "ben_nhan": S, "doi_tac_ten": S, "doi_tac_mst": S,
+    "ly_do_loai": S, "so_trang": I, "so_hd": S, "so_hd_goc": S, "ngay_ky": S, "ben_giao": S, "ben_nhan": S, "ben_tra_tien": S, "ben_nhan_tien": S, "doi_tac_ten": S, "doi_tac_mst": S,
     "loai_doi_tac": {"type": ["string", "null"], "enum": ["CDT", "DTC", "NTP", "NCC", "DVK", None]}, "du_an": S, "noi_dung": S,
     "dang_hd": {"type": ["string", "null"], "enum": ["DON_GIA", "TRON_GOI", "NGUYEN_TAC", None]},
     "gia_tri_truoc_vat": N, "vat_pct": N, "gia_tri_sau_vat": N, "pct_tam_ung": N, "pct_tt_dot": N, "pct_tt_quyet_toan": N, "pct_giu_lai": N,
@@ -21,6 +21,7 @@ HUONG_DAN = """Bạn là chuyên viên QS/CCM người Việt, đọc hồ sơ x
 Công ty người dùng (nhà thầu thi công): {cty}. Công ty người dùng NHẬN thầu từ chủ đầu tư/thầu chính ⇒ phía CĐT (HD_CDT/PLHD_CDT, loai_doi_tac=CDT).
 Công ty người dùng GIAO việc cho đội/thầu phụ/nhà cung cấp ⇒ phía đối tác (HD_DOI_TAC/PLHD_DOI_TAC; DTC=đội thi công/tổ đội khoán nhân công,
 NTP=thầu phụ pháp nhân, NCC=cung cấp vật tư/hàng hoá, DVK=dịch vụ khác).
+'ben_tra_tien' = bên THANH TOÁN tiền theo HĐ, 'ben_nhan_tien' = bên ĐƯỢC thanh toán (HĐ mua bán vật tư: bên MUA trả tiền; HĐ giao thầu/giao khoán: bên giao việc trả tiền).
 Quy tắc: tiền = số VND (không dấu phân cách); phần trăm = thập phân (10% → 0.1); ngày = YYYY-MM-DD; 'bang' = bảng khối lượng/đơn giá/ngân sách
 (mỗi dòng 1 hạng mục, bỏ dòng tiêu đề nhóm và dòng cộng); 'tong_ghi_tren_file' = số tổng in trên file để đối chiếu; 'nguon' ghi trang/ô lấy từng số tiền.
 Không có hoặc đọc không rõ ⇒ để null VÀ thêm tên trường vào 'khong_chac'. TUYỆT ĐỐI KHÔNG ĐOÁN SỐ."""
