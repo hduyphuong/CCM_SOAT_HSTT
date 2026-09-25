@@ -48,7 +48,7 @@ def danh_muc(khung):
     wb.close()
     return dict(doi_tac=dt_, hop_dong=hd, goi=goi, loai=[dict(ma=k, ten=v[0]) for k, v in LOAI.items() if k != "HSTT_KY"])
 
-TIEN_TO = r"^(to doi|doi thi cong|thi cong|doi|dich vu|thuong mai dich vu|cong ty co phan|cong ty tnhh mtv|cong ty tnhh|cong ty cp|cong ty|ctcp|cty|tnhh|mtv|sx|tm|dv|xd|thuong mai|xay dung|kien truc|san xuat|dau tu)\s+"
+TIEN_TO = r"^(to doi|doi thi cong|thi cong|doi|dich vu|thuong mai dich vu|tu van|thiet ke|cong ty co phan|cong ty tnhh mtv|cong ty tnhh|cong ty cp|cong ty|ctcp|cty|tnhh|mtv|sx|tm|dv|xd|thuong mai|xay dung|kien truc|san xuat|dau tu)\s+"
 def ma_de_xuat(ten):
     """Quy ước mã cũ: người/tổ đội ⇒ chữ đầu các từ + từ cuối ('Tổ đội Trần Thành Thắng' ⇒ TTThang);
     công ty ⇒ ghép 2 từ cuối ('Công ty TNHH TM DV XD Mỹ Kim' ⇒ MyKim); có viết tắt trong ngoặc ⇒ dùng luôn ('…(DECOFI)' ⇒ DECOFI)."""
@@ -182,6 +182,8 @@ def chuan_hoa(kq, cty=None):
         if giao and not nhan:
             kq["doi_tac_ten"] = ben_kia
             if kq.get("loai_doi_tac") == "CDT": kq["loai_doi_tac"] = "NCC" if re.search(r"mua ban|cung cap|cung ung|hang hoa|vat tu", chu) else None
+    if kq.get("doi_tac_ten"):                                         # chỉ giữ TÊN: bỏ mọi (…), CCCD/CMND/MST
+        kq["doi_tac_ten"] = re.sub(r"\s{2,}", " ", re.sub(r"(?i)\b(CCCD|CMND|MST|Mã số thuế)\b\s*[:.]?\s*[\d\s.-]*", " ", re.sub(r"\([^)]*\)", " ", kq["doi_tac_ten"]))).strip(" -–,;")
     if kq.get("doi_tac_ten"):                                         # bỏ phần người đại diện: "… - Ông Chu Quang Huân, P.TGĐ (ủy quyền…)"
         kq["doi_tac_ten"] = re.split(r"\s*[-,–]\s*(?:Ông|Bà|Ong|Ba|Giám đốc|Giam doc|Tổng giám đốc|Đại diện|Dai dien|Người đại diện)\b|\s*[\(\[]\s*(?:đại diện|dai dien|ông|bà)|\s*[-,–(]?\s*(?:MST|Mã số thuế)\b", kq["doi_tac_ten"], flags=re.I)[0].strip(" -,–")
         if la_cty_minh(kq.get("doi_tac_ten"), kw): co.append(dict(muc="CHAN", mo_ta="Đối tác trùng tên công ty mình — không xác định được bên nào là đối tác"))
@@ -190,7 +192,9 @@ def chuan_hoa(kq, cty=None):
         if isinstance(v, (int, float)) and 1.0001 < v <= 100: kq[k] = round(v / 100, 6); co.append(dict(muc="LUU_Y", mo_ta=f"{k}: AI trả {v} ⇒ app đổi thành {kq[k]:.2%}"))
         elif isinstance(v, (int, float)) and not (0 <= kq[k] <= 1): co.append(dict(muc="CHAN", mo_ta=f"{k} = {v} không hợp lệ (phải 0–100%)"))
     chu = khong_dau(" ".join(str(kq.get(x) or "") for x in ("doi_tac_ten", "ben_nhan", "so_hd", "noi_dung"))).lower()
-    if kq.get("loai_doi_tac") in ("NTP", None) and re.search(r"\bto doi\b|doi thi cong|giao khoan|khoan nhan cong|hdgk", chu):
+    cong_ty = bool(re.search(r"cong ty|ctcp|tnhh|co phan", khong_dau(kq.get("doi_tac_ten") or kq.get("ben_nhan") or "").lower()))
+    if cong_ty and kq.get("loai_doi_tac") == "DTC": kq["loai_doi_tac"] = "NTP"; co.append(dict(muc="LUU_Y", mo_ta="Đối tác là công ty ⇒ Thầu phụ (NTP), không phải tổ đội"))
+    if not cong_ty and kq.get("loai_doi_tac") in ("NTP", None) and re.search(r"\bto doi\b|doi thi cong|giao khoan|khoan nhan cong|hdgk", chu):
         co.append(dict(muc="LUU_Y", mo_ta=f"AI xếp loại đối tác {kq.get('loai_doi_tac')} nhưng HĐ là giao khoán / tổ đội ⇒ app đổi thành Đội thi công (DTC)")); kq["loai_doi_tac"] = "DTC"
     return co
 def xu_ly_ai(data, da, i, khung, cty):
