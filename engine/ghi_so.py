@@ -5,6 +5,7 @@ Kế hoạch gồm nhiều PHẦN: {tt: sheet thanh toán, ct: sheet dòng HĐ, 
 import os, shutil, datetime as dt
 import pythoncom, win32com.client as w32
 from doc_hstt import na
+import cong_thuc as T
 NGUONG = 10
 XL_UP = -4162
 
@@ -54,14 +55,19 @@ def _ghi_phan(wb, ph, ten_file):
     w7, w9, ma = wb.Worksheets(ph["ct"]), wb.Worksheets(ph["tt"]), ph["ma_hd"]
     for d in ph["dong_moi"]:                                          # dòng HĐ phát sinh mới — chép dòng cuối để giữ công thức
         last = w7.Cells(w7.Rows.Count, 1).End(XL_UP).Row; r = last + 1
-        w7.Range(f"A{last}:O{last}").Copy(w7.Range(f"A{r}"))
+        if last >= 2: w7.Range(f"A{last}:O{last}").Copy(w7.Range(f"A{r}"))
+        else:                                                         # sheet trống: không có dòng mẫu ⇒ dựng công thức
+            for col, f in T.ct_cong_thuc(ph["ct"], r).items(): w7.Range(f"{col}{r}").Formula = f
         for col, v in (("A", ma), ("B", d["stt"]), ("D", "NGOAI_HD"), ("E", d["noi_dung"]), ("F", d["dvt"]), ("G", None),
                        ("H", d["don_gia"]), ("J", ""), ("K", ""), ("O", f"webapp — phát sinh từ {ten_file[:40]}")):
             w7.Range(f"{col}{r}").Value = v
     for x in ph["dong_tt"]:                                           # dòng thanh toán
         last = w9.Cells(w9.Rows.Count, 1).End(XL_UP).Row; r = last + 1
-        w9.Range(f"A{last}:R{last}").Copy(w9.Range(f"A{r}"))
-        ngay = dt.datetime(x["ngay"].year, x["ngay"].month, x["ngay"].day) if x["ngay"] else None
+        if last >= 2: w9.Range(f"A{last}:R{last}").Copy(w9.Range(f"A{r}"))
+        else:
+            for col, f in T.tt_cong_thuc(ph["tt"], r, co_noi_dung=True).items(): w9.Range(f"{col}{r}").Formula = f
+            for col, f in (("C", "dd/mm/yyyy"), ("O", "dd/mm/yyyy"), ("K", '#,##0;[Red]-#,##0;"–"'), ("N", '#,##0;[Red]-#,##0;"–"')): w9.Range(f"{col}{r}").NumberFormat = f
+        ngay = (dt.date(x["ngay"].year, x["ngay"].month, x["ngay"].day) - dt.date(1899, 12, 30)).days if x["ngay"] else None   # serial: COM đổi datetime theo múi giờ ⇒ lùi 1 ngày
         dong = x["stt"] is not None
         vals = {"A": ma, "B": x["dot"], "C": ngay, "D": x["loai"], "E": x["stt"] if dong else None,
                 "F": f"=IFERROR(VLOOKUP(A{r}&\"|\"&E{r},'{ph['ct']}'!$C:$E,3,0),\"\")" if dong else x["ghi"],

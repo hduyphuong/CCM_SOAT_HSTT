@@ -12,13 +12,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json, os, sys, base64, datetime as dt, threading, traceback
 from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC, cay as C, nen as NEN
+import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC, cay as C, nen as NEN, nhap_khung as NK
 
 PORT = 8765
 # VỊ TRÍ DỮ LIỆU — chỉ ghi ở máy này (engine/cau_hinh_may.json, không lên git): {"DATA": "<thư mục dữ liệu>"}.
 # Đổi công ty / đổi ổ / đổi máy ⇒ chỉ sửa 1 dòng này. Mọi đường dẫn bên trong DATA đều lưu TƯƠNG ĐỐI nên không phải sửa gì thêm.
 MAY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cau_hinh_may.json")
-DATA = json.load(open(MAY, encoding="utf-8"))["DATA"] if os.path.exists(MAY) else r"D:\QLCP_HD\WEBAPP_SOAT_HSTT_DATA"
+MAY_CFG = json.load(open(MAY, encoding="utf-8")) if os.path.exists(MAY) else {}
+DATA = MAY_CFG.get("DATA", r"D:\QLCP_HD\WEBAPP_SOAT_HSTT_DATA")
+CTY = MAY_CFG.get("CONG_TY", "(chưa khai báo công ty — thêm CONG_TY vào engine/cau_hinh_may.json)")   # để AI biết mình là bên nào trong HĐ
 def tuyet_doi(x): return os.path.normpath(os.path.join(DATA, x)) if x and not os.path.isabs(x) else x
 def tuong_doi(x):
     try: return os.path.relpath(x, DATA) if x and os.path.isabs(x) and os.path.normcase(x).startswith(os.path.normcase(DATA)) else x
@@ -123,7 +125,20 @@ def du_lieu(da):
 
 def xu_ly_nap_nen(b):
     da = b["du_an"]; cfg = du_an()[da]
-    return NEN.nap_nen(DATA, da, cfg["khung"], b["ten"], base64.b64decode(b["b64"]), b.get("loai"), b.get("ma_dt"), b.get("loai_dt"), b.get("goi"), b.get("ghi_chu", ""))
+    return NEN.nap_nen(DATA, da, cfg["khung"], b["ten"], base64.b64decode(b["b64"]), b.get("loai") or None, b.get("ma_dt"), b.get("loai_dt"), b.get("goi"), b.get("ghi_chu", ""))
+def xu_ly_nhap_khung(b):
+    """Anh duyệt hồ sơ nền ⇒ ghi vào khung (HĐ CĐT / đối tác). Kiểm lại cờ CHẶN ngay trước khi ghi."""
+    da, i = b["du_an"], b["id"]; cfg = du_an()[da]
+    with KHOA:
+        rec = NEN.doc_so(DATA, da)[i]
+        if rec.get("trang_thai") != "CHO_DUYET": raise ValueError("Hồ sơ này không ở trạng thái chờ duyệt")
+        if any(c["muc"] == "CHAN" for c in rec.get("co", [])): raise ValueError("Còn cờ CHẶN — chưa ghi khung được")
+        if rec["loai"] not in ("HD_CDT", "HD_DOI_TAC"): raise ValueError("Ghi khung cho BoQ / ngân sách / gói thầu đang làm (đơn vị C) — file đã lưu đúng folder")
+        kq = NK.ghi_hd(cfg["khung"], da, rec, b.get("sua") or {}, os.path.join(os.path.dirname(cfg["khung"]), "_backup"))
+        NEN.sua_rec(DATA, da, i, ket_qua_khung=kq, **({"trang_thai": "DA_NHAP", "da_nhap_khung": True, "ma_hd": kq["ma_hd"]} if kq["ok"] else {}))
+        if kq["ok"]: C.tao_cay(DATA, da, cfg["khung"])
+    if not kq["ok"]: raise ValueError(kq["ly_do"])
+    return kq
 def xu_ly_doan_hstt(b):
     ds = list(so_nap(b["du_an"]).values()); diem = dict((i, d) for d, i in NEN.doan_hstt(b["ten"], ds))
     return sorted([dict(id=r["id"], ten=r["ten"], ma_hd=(r.get("phan_loai") or {}).get("ma_hd"), dot=(r.get("tom_tat") or {}).get("dot"),
@@ -165,6 +180,8 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/nap-nen": return self._tra(200, xu_ly_nap_nen(b))
             if self.path == "/doan-hstt": return self._tra(200, xu_ly_doan_hstt(b))
             if self.path == "/dinh-kem": return self._tra(200, xu_ly_dinh_kem(b))
+            if self.path == "/nhap-khung": return self._tra(200, xu_ly_nhap_khung(b))
+            if self.path == "/doc-lai": return self._tra(200, NEN.doc_lai(DATA, b["du_an"], b["id"]))
             self._tra(404, dict(loi="không có đường dẫn này"))
         except Exception as e: traceback.print_exc(); self._tra(500, dict(loi=str(e)))
     def log_message(self, fmt, *a): sys.stderr.write(f"[{dt.datetime.now():%H:%M:%S}] {fmt % a}\n")
@@ -172,6 +189,7 @@ class H(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     for st in (sys.stdout, sys.stderr): st.reconfigure(encoding="utf-8", errors="replace")   # console Windows cp1252 không in được tiếng Việt
     os.makedirs(DATA, exist_ok=True)
+    NEN.khoi_dong(DATA, du_an, CTY)                                  # luồng AI đọc hồ sơ nền (gói Claude của người dùng) + xếp lại việc dở
     for da_, v in du_an().items():                                   # bổ sung cây thư mục (idempotent) — đối tác mới có HĐ thì có folder
         try: C.tao_cay(DATA, da_, v.get("khung"))
         except Exception as e: print(f"[cây] {da_}: {e}")
