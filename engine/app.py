@@ -4,12 +4,15 @@ Trang (GitHub Pages / file local) gọi vào đây. Dữ liệu CHỈ nằm trê
   POST /nap    {du_an, ten, b64}  → lưu file, phân loại, tự kiểm 4 lớp, kế hoạch ghi sổ
   POST /duyet  {du_an, id, hanh_dong: DONG_Y | YEU_CAU_SUA | TRA_DOI, ly_do}
   GET  /bao-cao?du_an=X           → R0 tổng quan + 90_Check (đọc từ file khung)
+  GET  /danh-muc?du_an=X · GET /ho-so-nen?du_an=X   → danh sách chọn (đối tác, HĐ, gói) · sổ hồ sơ nền
+  POST /nap-nen {du_an, ten, b64, loai, ma_dt, loai_dt, goi, ghi_chu} → lưu BoQ/NS/gói/báo giá/HĐ/QT đúng folder
+  POST /doan-hstt {du_an, ten} · POST /dinh-kem {du_an, id, ten, b64} → PDF bản ký gắn vào HSTT Excel cùng HĐ + đợt
   GET  /du-lieu?du_an=X           → ĐẦU RA: hợp đồng · bill · báo cáo tài chính · đối tác · dòng tiền (đọc R1…R7 của file khung)"""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json, os, sys, base64, datetime as dt, threading, traceback
 from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC, cay as C
+import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC, cay as C, nen as NEN
 
 PORT = 8765
 # VỊ TRÍ DỮ LIỆU — chỉ ghi ở máy này (engine/cau_hinh_may.json, không lên git): {"DATA": "<thư mục dữ liệu>"}.
@@ -42,10 +45,12 @@ def so_nap(da):
     for r in s.values():
         for f in DUONG:
             if r.get(f): r[f] = tuyet_doi(r[f])
+        for x in r.get("dinh_kem", []): x["file"] = tuyet_doi(x["file"])
     return s
 def luu_so(da, s):
     os.makedirs(he_thong(da), exist_ok=True)
-    s = {k: dict(v, **{f: tuong_doi(v[f]) for f in DUONG if v.get(f)}) for k, v in s.items()}
+    s = {k: dict(v, **{f: tuong_doi(v[f]) for f in DUONG if v.get(f)},
+                 **({"dinh_kem": [dict(x, file=tuong_doi(x["file"])) for x in v["dinh_kem"]]} if v.get("dinh_kem") else {})) for k, v in s.items()}
     json.dump(s, open(so_nap_path(da), "w", encoding="utf-8"), ensure_ascii=False, indent=1, default=_json)
 
 def xu_ly_nap(b):
@@ -95,7 +100,7 @@ def xu_ly_duyet(b):
         rec["ket_qua"] = kq_ghi
         if kq_ghi["ok"]:
             rec["trang_thai"] = "DA_GHI_SO"
-            try: rec["luu_tru"] = C.luu_tru(DATA, da, rec, cfg["khung"])          # xếp bản gốc vào …\HSTT\Dxx_YYYYMMDD\ của đúng đối tác
+            try: rec["luu_tru"] = C.luu_tru(DATA, da, rec, cfg["khung"]); NEN.xep_dinh_kem(rec)   # xếp bản gốc + PDF bản ký vào …\HSTT\Dxx_YYYYMMDD\
             except Exception as e: rec["luu_tru_loi"] = str(e)
     else:
         rec["trang_thai"] = hd; rec["ly_do"] = b.get("ly_do") or ""
@@ -115,6 +120,18 @@ def du_lieu(da):
     p = du_an()[da]["khung"]; m = os.path.getmtime(p)
     if _DL.get(p, (None,))[0] != m: _DL[p] = (m, BC.doc(p, so_nap(da)))
     return dict(_DL[p][1], cap_nhat=dt.datetime.fromtimestamp(m).strftime("%d/%m/%Y %H:%M"))
+
+def xu_ly_nap_nen(b):
+    da = b["du_an"]; cfg = du_an()[da]
+    return NEN.nap_nen(DATA, da, cfg["khung"], b["ten"], base64.b64decode(b["b64"]), b.get("loai"), b.get("ma_dt"), b.get("loai_dt"), b.get("goi"), b.get("ghi_chu", ""))
+def xu_ly_doan_hstt(b):
+    ds = list(so_nap(b["du_an"]).values()); diem = dict((i, d) for d, i in NEN.doan_hstt(b["ten"], ds))
+    return sorted([dict(id=r["id"], ten=r["ten"], ma_hd=(r.get("phan_loai") or {}).get("ma_hd"), dot=(r.get("tom_tat") or {}).get("dot"),
+                        trang_thai=r["trang_thai"], so_pdf=len(r.get("dinh_kem", [])), diem=diem.get(r["id"], 0)) for r in ds], key=lambda x: -x["diem"])
+def xu_ly_dinh_kem(b):
+    da = b["du_an"]; s = so_nap(da)
+    if b.get("id") not in s: raise ValueError("Chưa chọn HSTT Excel để gắn PDF")
+    rec = NEN.dinh_kem(DATA, da, s[b["id"]], b["ten"], base64.b64decode(b["b64"])); s[b["id"]] = rec; luu_so(da, s); return rec
 
 class H(BaseHTTPRequestHandler):
     def _cors(self):
@@ -136,6 +153,8 @@ class H(BaseHTTPRequestHandler):
             if u.path == "/ho-so": return self._tra(200, sorted(so_nap(q["du_an"]).values(), key=lambda r: r["luc"], reverse=True))
             if u.path == "/bao-cao": return self._tra(200, bao_cao(q["du_an"]))
             if u.path == "/du-lieu": return self._tra(200, du_lieu(q["du_an"]))
+            if u.path == "/danh-muc": return self._tra(200, NEN.danh_muc(du_an()[q["du_an"]]["khung"]))
+            if u.path == "/ho-so-nen": return self._tra(200, sorted(NEN.doc_so(DATA, q["du_an"]).values(), key=lambda r: r["luc"], reverse=True))
             self._tra(404, dict(loi="không có đường dẫn này"))
         except Exception as e: traceback.print_exc(); self._tra(500, dict(loi=str(e)))
     def do_POST(self):
@@ -143,6 +162,9 @@ class H(BaseHTTPRequestHandler):
             b = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
             if self.path == "/nap": return self._tra(200, xu_ly_nap(b))
             if self.path == "/duyet": return self._tra(200, xu_ly_duyet(b))
+            if self.path == "/nap-nen": return self._tra(200, xu_ly_nap_nen(b))
+            if self.path == "/doan-hstt": return self._tra(200, xu_ly_doan_hstt(b))
+            if self.path == "/dinh-kem": return self._tra(200, xu_ly_dinh_kem(b))
             self._tra(404, dict(loi="không có đường dẫn này"))
         except Exception as e: traceback.print_exc(); self._tra(500, dict(loi=str(e)))
     def log_message(self, fmt, *a): sys.stderr.write(f"[{dt.datetime.now():%H:%M:%S}] {fmt % a}\n")

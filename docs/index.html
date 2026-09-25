@@ -247,13 +247,17 @@ table.bctc tr.l1 td{background:#f5f3fa!important}table.bctc tr.tong td{backgroun
 .lay .hdr .prj{background:#fff;border:1.5px solid #ddd6ee;box-shadow:var(--sh)}.lay .hdr .prj span{color:var(--fa)}.lay .hdr .prj select{color:var(--pur)}
 @media(max-width:820px){.lay{grid-template-columns:1fr}.sb{position:relative;height:auto}.sb nav{flex-direction:row;overflow-x:auto}.sb nav .grp,.sb .eng{display:none}.sb nav button{flex:none}}
 @media print{.sb{display:none!important}.lay{display:block}}
+.nen-form{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}.nen-form label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;font-weight:600;color:var(--mu);flex:0 1 240px}
+.nen-form select,.nen-form input{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--ru);border-radius:8px;background:#fff;min-width:0}
+.nen-form select:focus,.nen-form input:focus{outline:none;border-color:var(--ora);box-shadow:0 0 0 3px rgba(232,85,42,.12)}
+.n-dong{font-size:12.5px;padding:6px 0;border-bottom:1px dashed var(--ru2)}
 </style>
 </head>
 <body>
 <div class="lay">
 <aside class="sb">
   <div class="sb-brand"><div class="logo">CCM</div><div><b>CCM · HSTT</b><span>Cost &amp; Contract Management</span></div></div>
-  <nav><div class="grp">Nghiệp vụ</div><button class="on" data-t="nap" data-ti="Nạp &amp; duyệt hồ sơ thanh toán" data-su="Kéo thả HSTT — engine tự phân loại, kiểm 4 lớp; anh duyệt rồi mới ghi sổ"><span class="nn">1</span>Nạp &amp; duyệt</button><button class="" data-t="hs" data-ti="Hồ sơ đã nạp" data-su="Lịch sử hồ sơ của dự án — bấm một dòng để xem chi tiết và duyệt tiếp"><span class="nn">2</span>Hồ sơ đã nạp</button><div class="grp">Báo cáo</div><button class="" data-t="bc" data-ti="Tổng quan dự án" data-su="Bức tranh tài chính tại ngày chốt số liệu — đọc từ file khung Excel"><span class="nn">3</span>Tổng quan</button><button class="" data-t="hd" data-ti="Hợp đồng" data-su="Doanh thu (CĐT) và chi phí (đội, thầu phụ, nhà cung cấp)"><span class="nn">4</span>Hợp đồng</button><button class="" data-t="bill" data-ti="Bill thanh toán theo kỳ" data-su="Các đợt thanh toán của từng hợp đồng"><span class="nn">5</span>Bill thanh toán</button><button class="" data-t="bctc" data-ti="Báo cáo tài chính" data-su="Doanh thu · chi phí theo mã ngân sách · lợi nhuận"><span class="nn">6</span>BC Tài chính</button><button class="" data-t="dt" data-ti="Đối tác" data-su="Chủ đầu tư, đội thi công, thầu phụ, nhà cung cấp và giao dịch theo hợp đồng"><span class="nn">7</span>Đối tác</button></nav>
+  <nav><div class="grp">Nghiệp vụ</div><button class="on" data-t="nap" data-ti="Nạp &amp; duyệt hồ sơ thanh toán" data-su="Kéo thả HSTT — engine tự phân loại, kiểm 4 lớp; anh duyệt rồi mới ghi sổ"><span class="nn">1</span>Nạp &amp; duyệt</button><button class="" data-t="hs" data-ti="Hồ sơ đã nạp" data-su="Lịch sử hồ sơ của dự án — bấm một dòng để xem chi tiết và duyệt tiếp"><span class="nn">2</span>Hồ sơ đã nạp</button><button class="" data-t="nen" data-ti="Hồ sơ nền" data-su="BoQ, ngân sách, gói thầu, báo giá, hợp đồng, quyết toán — Excel/PDF, tự xếp đúng folder"><span class="nn">3</span>Hồ sơ nền</button><div class="grp">Báo cáo</div><button class="" data-t="bc" data-ti="Tổng quan dự án" data-su="Bức tranh tài chính tại ngày chốt số liệu — đọc từ file khung Excel"><span class="nn">4</span>Tổng quan</button><button class="" data-t="hd" data-ti="Hợp đồng" data-su="Doanh thu (CĐT) và chi phí (đội, thầu phụ, nhà cung cấp)"><span class="nn">5</span>Hợp đồng</button><button class="" data-t="bill" data-ti="Bill thanh toán theo kỳ" data-su="Các đợt thanh toán của từng hợp đồng"><span class="nn">6</span>Bill thanh toán</button><button class="" data-t="bctc" data-ti="Báo cáo tài chính" data-su="Doanh thu · chi phí theo mã ngân sách · lợi nhuận"><span class="nn">7</span>BC Tài chính</button><button class="" data-t="dt" data-ti="Đối tác" data-su="Chủ đầu tư, đội thi công, thầu phụ, nhà cung cấp và giao dịch theo hợp đồng"><span class="nn">8</span>Đối tác</button></nav>
   <div class="eng"><span class="pill"><i class="dot" id="dot"></i><span id="st">chưa nối engine</span></span><input id="eng" title="Địa chỉ engine trên máy anh"></div>
 </aside>
 <div class="ctw">
@@ -265,13 +269,13 @@ table.bctc tr.l1 td{background:#f5f3fa!important}table.bctc tr.tong td{backgroun
 </header>
 <main>
   <section id="t-nap">
-    <div class="drop" id="drop"><b>Kéo thả hồ sơ thanh toán vào đây</b> — đội, thầu phụ, NCC hoặc hồ sơ gửi CĐT (doanh thu) — nhiều file một lần<br>
-      <span class="note">File chỉ đi qua trang tới engine trên máy anh; không lưu lên mạng.</span><input type="file" id="f" multiple accept=".xlsx" hidden></div>
+    <div class="drop" id="drop"><b>Kéo thả hồ sơ thanh toán vào đây</b> — Excel (.xlsx) để soát &amp; ghi sổ, kèm PDF bản ký — đội, thầu phụ, NCC hoặc CĐT — nhiều file một lần<br>
+      <span class="note">File chỉ đi qua trang tới engine trên máy anh; không lưu lên mạng.</span><input type="file" id="f" multiple accept=".xlsx,.xlsm,.pdf" hidden></div>
     <div id="cards" style="display:flex;flex-direction:column;gap:14px;margin-top:14px"></div>
   </section>
   <section id="t-hs" class="hide"><div class="card"><div class="right"><table id="tb-hs"></table></div></div>
     <p class="note">Bấm vào một dòng để xem chi tiết hồ sơ (cờ, số liệu, kế hoạch ghi sổ) và duyệt tiếp nếu còn chờ.</p><div id="hs-ct"></div></section>
-  <section id="t-bc" class="hide dr"></section><section id="t-hd" class="hide dr"></section><section id="t-bill" class="hide dr"></section>
+  <section id="t-nen" class="hide dr"></section><section id="t-bc" class="hide dr"></section><section id="t-hd" class="hide dr"></section><section id="t-bill" class="hide dr"></section>
   <section id="t-bctc" class="hide dr"></section><section id="t-dt" class="hide dr"></section>
 </main>
 <div class="footer">CCM · Soát hồ sơ thanh toán &amp; báo cáo dự án &nbsp;|&nbsp; dữ liệu chỉ nằm trên máy anh — trang không lưu số liệu lên mạng</div>
@@ -295,8 +299,8 @@ async function ping() {
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   $("#pg-t").innerHTML = b.dataset.ti; $("#pg-h").innerHTML = b.dataset.ti; $("#pg-s").textContent = b.dataset.su; window.scrollTo(0, 0);
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
-  ["nap", "hs", "bc", "hd", "bill", "bctc", "dt"].forEach(t => $("#t-" + t).classList.toggle("hide", t !== b.dataset.t));
-  if (b.dataset.t === "hs") hoSo();
+  ["nap", "hs", "nen", "bc", "hd", "bill", "bctc", "dt"].forEach(t => $("#t-" + t).classList.toggle("hide", t !== b.dataset.t));
+  if (b.dataset.t === "hs") hoSo(); if (b.dataset.t === "nen") tabNen();
   if (TAB_DAU_RA[b.dataset.t] && !DL) $("#t-" + b.dataset.t).innerHTML = '<div class="sk" style="height:460px"></div>';
   if (TAB_DAU_RA[b.dataset.t]) TAB_DAU_RA[b.dataset.t]().catch(e => $("#t-" + b.dataset.t).innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`);
 });
@@ -307,10 +311,10 @@ drop.ondrop = e => { e.preventDefault(); drop.classList.remove("hot"); nap([...e
 const b64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result.split(",")[1]); r.onerror = no; r.readAsDataURL(f) });
 async function nap(files) {
   for (const f of files) {
+    if (/\.pdf$/i.test(f.name)) { $("#cards").prepend(await thePdfHstt(f)); continue; }   // PDF = bản ký kèm HSTT Excel
     if (!/\.xlsx?m?$/i.test(f.name) || /\.xls$/i.test(f.name)) {           // chặn sớm file không phải HSTT Excel (.xlsx/.xlsm)
       const w = document.createElement("div"); w.className = "card";
-      w.innerHTML = `<div class="hd"><h3>${esc(f.name)}</h3><span class="chip wa">Chưa hỗ trợ loại file này</span></div><div class="pad note">Webapp hiện chỉ nạp
-        <b>HSTT dạng Excel (.xlsx)</b>. Hợp đồng, BoQ, ngân sách, báo giá (PDF/Excel) sẽ nạp được ở chức năng <b>Nạp hồ sơ nền</b> — tạm thời anh bỏ file vào đúng folder trên Drive
+      w.innerHTML = `<div class="hd"><h3>${esc(f.name)}</h3><span class="chip wa">Chưa hỗ trợ loại file này</span></div><div class="pad note">Ô này nhận <b>HSTT Excel (.xlsx)</b> và <b>PDF bản ký</b>. Hợp đồng, BoQ, ngân sách, báo giá anh nạp ở mục <b>③ Hồ sơ nền</b>
         (VD HĐ với CĐT → <code>10_THU_CDT › HOP_DONG</code>, HĐ đối tác → <code>20_CHI_DOI_TAC › &lt;đối tác&gt; › HOP_DONG</code>).</div>`;
       $("#cards").prepend(w); continue;
     }
@@ -387,5 +391,6 @@ $("#da").onchange = () => { DL = null; const t = document.querySelector("nav but
 ping();
 </script>
 <script src="bao_cao.js"></script>
+<script src="nen.js"></script>
 </body>
 </html>
