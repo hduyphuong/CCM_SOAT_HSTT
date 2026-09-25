@@ -101,3 +101,47 @@ def ghi_hd(khung, da, rec, sua, thu_muc_backup):
     finally:
         if wb is not None: wb.Close(False)
         app.Quit()
+
+def ghi_phu_luc(khung, da, rec, thu_muc_backup):
+    """PHỤ LỤC HĐ: N4/N6 thêm dòng loai_ghi PHU_LUC dưới mã HĐ gốc; mỗi đơn giá của PL ⇒ 1 dòng N5/N7 MỚI (STT PLn.xx, nội dung '— giá <số PL> từ <ngày>'),
+    giữ nguyên dòng giá cũ để đối chiếu HSTT theo thời điểm. HĐ gốc phải có sẵn; cùng số PL đã ghi ⇒ không ghi lần 2."""
+    a = dict(rec["ai"] or {}); cdt = rec["loai"] == "HD_CDT"
+    sh_hd, sh_ct = ("N4_HD_CDT", "N5_BOQ_CDT") if cdt else ("N6_HD_DoiTac", "N7_HD_DoiTac_ChiTiet")
+    ma_dt = rec.get("ma_doi_tac") or ""; ma_hd = "HD-CDT" if cdt else f"HD-{ma_dt}"; so_pl = str(a.get("so_hd") or "PL").strip()
+    ngay = _ngay(a.get("ngay_ky")); ngay_txt = dt.datetime.strptime(str(a.get("ngay_ky"))[:10], "%Y-%m-%d").strftime("%d/%m/%Y") if ngay else "?"
+    dong = [d for d in dong_hop_le(a.get("bang")) if d["don_gia"] is not None]
+    os.makedirs(thu_muc_backup, exist_ok=True)
+    bk = os.path.join(thu_muc_backup, f"{os.path.splitext(os.path.basename(khung))[0]}_truoc_nhap_PL_{dt.datetime.now():%Y%m%d_%H%M%S}.xlsx"); shutil.copy2(khung, bk)
+    pythoncom.CoInitialize(); app = w32.DispatchEx("Excel.Application"); app.Visible = False; app.DisplayAlerts = False; wb = None
+    try:
+        wb = app.Workbooks.Open(os.path.abspath(khung)); wh, wc = wb.Worksheets(sh_hd), wb.Worksheets(sh_ct); cot = T.cot(T.COT_HD[sh_hd])
+        if not _tim(wh, "A", ma_hd, 2):
+            wb.Close(False); wb = None; return dict(ok=False, ly_do=f"Chưa có HĐ gốc {ma_hd} trong khung — duyệt HĐ gốc trước", backup=bk)
+        so_pl_cu = [str(wh.Range(f"{cot['so_hd']}{r}").Value or "").strip() for r in range(2, _dong_cuoi(wh, "A", 1) + 1)
+                    if wh.Range(f"A{r}").Value == ma_hd and wh.Range(f"B{r}").Value == "PHU_LUC"]
+        if so_pl in so_pl_cu:
+            wb.Close(False); wb = None; return dict(ok=False, ly_do=f"Phụ lục {so_pl} của {ma_hd} đã ghi trước đó — không ghi lần 2", backup=bk)
+        n = len(so_pl_cu) + 1; r = _dong_cuoi(wh, "A", 1) + 1
+        for k, v in (("ma_hd", ma_hd), ("loai_ghi", "PHU_LUC"), ("ma_doi_tac", ma_dt), ("so_hd", so_pl), ("ngay_ky", ngay), ("noi_dung", (a.get("noi_dung") or "")[:250]),
+                     ("dang_hd", a.get("dang_hd")), ("gia_tri_truoc_vat", a.get("gia_tri_truoc_vat")), ("vat_pct", a.get("vat_pct")), ("trang_thai", "DANG_TH"),
+                     ("nguon", f"AI đọc {rec['ten'][:60]} · anh duyệt {dt.datetime.now():%d/%m/%Y}"), ("ghi_chu", (a.get("ghi_chu") or "")[:250])):
+            if k in cot and v not in (None, ""): wh.Range(f"{cot[k]}{r}").Value = v
+        wh.Range(f"{cot['ngay_ky']}{r}").NumberFormat = NG; wh.Range(f"{cot['gia_tri_truoc_vat']}{r}").NumberFormat = TIEN
+        c = T.cot(T.CT_COLS); r0 = _dong_cuoi(wc, "A", 1) + 1
+        for j, d in enumerate(dong):
+            rr = r0 + j
+            for k, v in (("ma_hd", ma_hd), ("stt", f"PL{n}.{d['stt']}"), ("pham_vi", "TRONG_HD"), ("noi_dung", f"{d['noi_dung']} — giá {so_pl} từ {ngay_txt}"),
+                         ("dvt", d["dvt"]), ("kl_hd", d["kl"] if d["kl"] != 1 or d.get("ghi") else None), ("don_gia", d["don_gia"]), ("nguon", f"PL {so_pl} · AI đọc {rec['ten'][:40]}")):
+                if v not in (None, ""): wc.Range(f"{c[k]}{rr}").Value = v
+            for col, f in T.ct_cong_thuc(sh_ct, rr).items(): wc.Range(f"{col}{rr}").Formula = f
+            wc.Range(f"{c['don_gia']}{rr}").NumberFormat = TIEN
+        app.CalculateFullRebuild()
+        so = sum(1 for rr in range(r0, r0 + len(dong)) if wc.Range(f"A{rr}").Value == ma_hd and str(wc.Range(f"B{rr}").Value).startswith(f"PL{n}."))
+        if so != len(dong) or wh.Range(f"B{r}").Value != "PHU_LUC":
+            wb.Close(False); wb = None; return dict(ok=False, ly_do=f"Tự kiểm không khớp ({so}/{len(dong)} dòng) — KHÔNG lưu", backup=bk)
+        wb.Save(); wb.Close(False); wb = None
+        return dict(ok=True, ma_hd=ma_hd, phu_luc=so_pl, so_dong=len(dong), backup=bk,
+                    thong_bao=f"Đã ghi phụ lục {so_pl} vào {ma_hd}: dòng PHU_LUC (N{'4' if cdt else '6'}) + {len(dong)} đơn giá mới (STT PL{n}.xx) · đã backup")
+    finally:
+        if wb is not None: wb.Close(False)
+        app.Quit()

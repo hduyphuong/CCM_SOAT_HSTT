@@ -143,8 +143,11 @@ def xu_ly_nhap_khung(b):
             if not kq["ok"]: raise ValueError(kq["ly_do"])
             return kq
         if rec["loai"] not in ("HD_CDT", "HD_DOI_TAC"): raise ValueError("Ghi khung cho BoQ / gói thầu đang làm — file đã lưu đúng folder")
-        if rec.get("la_phu_luc") or str((rec.get("ai") or {}).get("loai") or "").startswith("PLHD"):     # chốt chặn lần 2 ngay trước khi ghi
-            raise ValueError("Đây là PHỤ LỤC HĐ — không ghi thành HĐ gốc. Duyệt HĐ gốc trước; ghi điều chỉnh từ phụ lục đang làm")
+        if rec.get("la_phu_luc") or str((rec.get("ai") or {}).get("loai") or "").startswith("PLHD"):     # PHỤ LỤC: không bao giờ ghi thành HĐ gốc
+            kq = NK.ghi_phu_luc(cfg["khung"], da, rec, os.path.join(os.path.dirname(cfg["khung"]), "_backup"))
+            NEN.sua_rec(DATA, da, i, ket_qua_khung=kq, **({"trang_thai": "DA_NHAP", "da_nhap_khung": True} if kq["ok"] else {}))
+            if not kq["ok"]: raise ValueError(kq["ly_do"])
+            return kq
         kq = NK.ghi_hd(cfg["khung"], da, rec, b.get("sua") or {}, os.path.join(os.path.dirname(cfg["khung"]), "_backup"))
         NEN.sua_rec(DATA, da, i, ket_qua_khung=kq, **({"trang_thai": "DA_NHAP", "da_nhap_khung": True, "ma_hd": kq["ma_hd"]} if kq["ok"] else {}))
         if kq["ok"]: C.tao_cay(DATA, da, cfg["khung"])

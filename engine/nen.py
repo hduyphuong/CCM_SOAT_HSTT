@@ -228,8 +228,9 @@ def ap_ket_qua(data, da, i, khung, kq, meta):
     la_pl = str(kq.get("loai") or "").startswith("PLHD") or bool(re.search(r"phu luc|plhd|^pl[ _.-]?\d", khong_dau(rec["ten"]).lower()))
     if la_pl and loai in ("HD_CDT", "HD_DOI_TAC"):                  # PHỤ LỤC chỉ duyệt SAU HĐ gốc — không bao giờ ghi thành HĐ gốc
         ma_goc = "HD-CDT" if loai == "HD_CDT" else f"HD-{ma_dt}"
-        co.insert(0, dict(muc="CHAN", mo_ta=(f"Phụ lục HĐ — chưa có HĐ gốc {ma_goc} trong khung: anh duyệt HĐ gốc trước" if not any(h["ma_hd"] == ma_goc for h in dm["hop_dong"])
-                                              else f"Phụ lục của {ma_goc} — ghi điều chỉnh HĐ vào khung đang làm; file đã lưu làm chứng từ, KHÔNG ghi đè HĐ gốc")))
+        co = [c for c in co if not c["mo_ta"].startswith(("Không đọc được giá trị HĐ", "Không đọc được số hợp đồng"))]   # PL không cần giá trị riêng
+        co.insert(0, dict(muc="CHAN", mo_ta=f"Phụ lục HĐ — chưa có HĐ gốc {ma_goc} trong khung: anh duyệt HĐ gốc trước") if not any(h["ma_hd"] == ma_goc for h in dm["hop_dong"])
+                  else dict(muc="LUU_Y", mo_ta=f"Phụ lục của {ma_goc} — duyệt sẽ thêm dòng PHU_LUC + các đơn giá mới (giữ giá cũ để đối chiếu HSTT theo thời điểm)"))
     rel = thu_muc_dich(loai, ma_dt, loai_dt, rec.get("goi")) or "_HE_THONG/cho_phan_loai"
     with KHOA:
         s = doc_so(data, da); rec = s[i]; cu = os.path.join(data, rec["duong_dan"])
