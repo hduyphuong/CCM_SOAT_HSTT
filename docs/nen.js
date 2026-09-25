@@ -10,7 +10,7 @@ async function tabNen() {
   el.innerHTML = `
   <div class="card"><div class="hd"><div><h3>Nạp hồ sơ nền</h3><div class="note">Excel hoặc PDF — app xếp vào đúng folder của dự án trên Drive. Nhiều file một lần (cùng loại, cùng đối tác).</div></div></div>
     <div class="pad nen-form">
-      <label>Loại hồ sơ<select id="n-loai">${DM.loai.map(l => `<option value="${l.ma}">${esc(l.ten)}</option>`).join("")}</select></label>
+      <label>Loại hồ sơ<select id="n-loai"><option value="">— chọn loại hồ sơ —</option>${DM.loai.map(l => `<option value="${l.ma}">${esc(l.ten)}</option>`).join("")}</select></label>
       <label class="n-dt">Đối tác<select id="n-dt"><option value="">— chọn đối tác —</option>${DM.doi_tac.filter(d => d.loai !== "CĐT").map(d =>
         `<option value="${esc(d.ma)}">${esc(d.ten)} (${esc(d.ma)})</option>`).join("")}<option value="__moi">＋ Đối tác mới (chưa có trong khung)…</option></select></label>
       <label class="n-moi">Mã đối tác mới<input id="n-ma" placeholder="VD NVAn (không dấu, viết liền)"></label>
@@ -39,6 +39,7 @@ async function tabNen() {
 }
 async function napNen(files) {
   const l = $("#n-loai").value, moi = $("#n-dt").value === "__moi";
+  if (!l) { $("#n-kq").insertAdjacentHTML("afterbegin", '<div class="n-dong"><span class="chip er">chưa chọn</span> Chọn <b>Loại hồ sơ</b> trước khi nạp — để app xếp đúng folder</div>'); return }
   const tham = {loai: l, ma_dt: CAN_DT.includes(l) ? (moi ? $("#n-ma").value.trim() : $("#n-dt").value) : null,
                 loai_dt: moi ? $("#n-ldt").value : null, goi: l === "CHON_THAU" ? $("#n-goi").value : null, ghi_chu: $("#n-gc").value.trim()};
   for (const f of files) {
