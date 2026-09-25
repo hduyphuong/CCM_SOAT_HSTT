@@ -196,6 +196,10 @@ def chuan_hoa(kq, cty=None):
 def xu_ly_ai(data, da, i, khung, cty):
     import ai_doc
     s = doc_so(data, da); rec = s[i]; f = os.path.join(data, rec["duong_dan"])
+    import ns_r00
+    if f.lower().endswith((".xlsx", ".xlsm")) and ns_r00.la_mau_r00(f):     # mẫu ngân sách nội bộ ⇒ bộ đọc TẤT ĐỊNH, không AI
+        try: kq, _ = ns_r00.ket_qua_ai_gia(f); ap_ket_qua(data, da, i, khung, kq, dict(giay=0, luot=0, bo_doc="R00 — không dùng AI")); return
+        except Exception as e: sua_rec(data, da, i, trang_thai="LOI_AI", loi=f"Bộ đọc R00: {e}"[:400]); return
     try: kq, meta = ai_doc.doc(f, cty=cty)
     except Exception as e:
         sua_rec(data, da, i, trang_thai="LOI_AI", loi=str(e)[:400]); return
