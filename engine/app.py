@@ -12,7 +12,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC, cay as C
 
 PORT = 8765
-DATA = r"D:\QLCP_HD\WEBAPP_SOAT_HSTT_DATA"
+# VỊ TRÍ DỮ LIỆU — chỉ ghi ở máy này (engine/cau_hinh_may.json, không lên git): {"DATA": "<thư mục dữ liệu>"}.
+# Đổi công ty / đổi ổ / đổi máy ⇒ chỉ sửa 1 dòng này. Mọi đường dẫn bên trong DATA đều lưu TƯƠNG ĐỐI nên không phải sửa gì thêm.
+MAY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cau_hinh_may.json")
+DATA = json.load(open(MAY, encoding="utf-8"))["DATA"] if os.path.exists(MAY) else r"D:\QLCP_HD\WEBAPP_SOAT_HSTT_DATA"
+def tuyet_doi(x): return os.path.normpath(os.path.join(DATA, x)) if x and not os.path.isabs(x) else x
+def tuong_doi(x):
+    try: return os.path.relpath(x, DATA) if x and os.path.isabs(x) and os.path.normcase(x).startswith(os.path.normcase(DATA)) else x
+    except ValueError: return x                                     # khác ổ đĩa ⇒ giữ nguyên
+DUONG = ("file", "luu_tru")                                           # các trường đường dẫn trong so_nap.json
 def _cfg(ten):                                        # cấu hình ở _CAU_HINH\ (cây mới); còn file ở gốc (cây cũ) thì vẫn đọc được
     moi = os.path.join(DATA, "_CAU_HINH", ten); return moi if os.path.exists(moi) or not os.path.exists(os.path.join(DATA, ten)) else os.path.join(DATA, ten)
 CAU_HINH = _cfg("du_an.json")          # {"DU_AN_A": {"ten": "...", "khung": "<đường dẫn file khung .xlsx>"}}
@@ -23,12 +31,21 @@ KHOA = threading.Lock()                               # 1 lần ghi sổ tại 1
 def _json(o):
     if isinstance(o, (dt.date, dt.datetime)): return o.isoformat()
     raise TypeError(type(o))
-def du_an(): return json.load(open(CAU_HINH, encoding="utf-8")) if os.path.exists(CAU_HINH) else {}
+def du_an():
+    d = json.load(open(CAU_HINH, encoding="utf-8")) if os.path.exists(CAU_HINH) else {}
+    for v in d.values(): v["khung"] = tuyet_doi(v.get("khung"))
+    return d
 def he_thong(da): return os.path.join(DATA, da, "_HE_THONG")             # engine quản lý — không sửa tay
 def so_nap_path(da): return os.path.join(he_thong(da), "so_nap.json")
-def so_nap(da): p = so_nap_path(da); return json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {}
+def so_nap(da):
+    p = so_nap_path(da); s = json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {}
+    for r in s.values():
+        for f in DUONG:
+            if r.get(f): r[f] = tuyet_doi(r[f])
+    return s
 def luu_so(da, s):
     os.makedirs(he_thong(da), exist_ok=True)
+    s = {k: dict(v, **{f: tuong_doi(v[f]) for f in DUONG if v.get(f)}) for k, v in s.items()}
     json.dump(s, open(so_nap_path(da), "w", encoding="utf-8"), ensure_ascii=False, indent=1, default=_json)
 
 def xu_ly_nap(b):
