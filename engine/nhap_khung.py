@@ -25,15 +25,18 @@ def dong_hop_le(bang):
     import re; out = []
     for x in bang or []:
         if not (x.get("dvt") or x.get("kl") is not None) or re.match(r"^\s*(cộng|tổng)", str(x.get("noi_dung") or ""), re.I): continue
-        kl, dg, tt = x.get("kl"), x.get("don_gia"), x.get("thanh_tien")
+        kl, dg, tt = x.get("kl"), x.get("don_gia"), x.get("thanh_tien"); ghi = ""
         if kl is None and dg is None and tt is not None: kl, dg = 1, tt
-        out.append(dict(stt=str(x.get("stt") or len(out) + 1), noi_dung=x.get("noi_dung"), dvt=x.get("dvt") or "gói", kl=kl, don_gia=dg))
+        v = kl * dg if isinstance(kl, (int, float)) and isinstance(dg, (int, float)) else None
+        if isinstance(tt, (int, float)) and (v is None or abs(v - tt) > max(1000, abs(tt) * 0.001)):   # KL×ĐG ≠ thành tiền in trên HĐ ⇒ tin THÀNH TIỀN
+            ghi = f"HĐ ghi KL {kl} × ĐG {dg}; thành tiền theo HĐ {tt:,.0f}"; kl, dg = 1, tt
+        out.append(dict(stt=str(x.get("stt") or len(out) + 1), noi_dung=x.get("noi_dung"), dvt=x.get("dvt") or "gói", kl=kl, don_gia=dg, ghi=ghi))
     return out
 
 def ghi_hd(khung, da, rec, sua, thu_muc_backup):
     """rec = bản ghi hồ sơ nền (loai HD_CDT / HD_DOI_TAC, có rec['ai']). sua = dict ghi đè trường AI (anh điền chỗ trống). Trả dict kết quả."""
     a = dict(rec["ai"] or {}); a.update({k: v for k, v in (sua or {}).items() if v not in (None, "")})
-    import nen; bad = [c for c in nen.chuan_hoa(a) if c["muc"] == "CHAN"]                # chuẩn hoá lại lần nữa ngay trước khi ghi (phòng thủ)
+    import nen; bad = [c for c in nen.chuan_hoa(a) + nen.danh_gia(a, rec["loai"], None, {})[0] if c["muc"] == "CHAN"]                # chuẩn hoá lại lần nữa ngay trước khi ghi (phòng thủ)
     if bad: return dict(ok=False, ly_do="; ".join(c["mo_ta"] for c in bad))
     cdt = rec["loai"] == "HD_CDT"; sh_hd, sh_ct = ("N4_HD_CDT", "N5_BOQ_CDT") if cdt else ("N6_HD_DoiTac", "N7_HD_DoiTac_ChiTiet")
     ma_dt = rec.get("ma_doi_tac") or ""; loai_dt = "CDT" if cdt else (rec.get("loai_doi_tac") or a.get("loai_doi_tac"))
@@ -75,7 +78,7 @@ def ghi_hd(khung, da, rec, sua, thu_muc_backup):
         for j, d in enumerate(dong):
             rr = r0 + j
             for k, v in (("ma_hd", ma_hd), ("stt", d["stt"]), ("pham_vi", "TRONG_HD"), ("noi_dung", d["noi_dung"]), ("dvt", d["dvt"]), ("kl_hd", d["kl"]),
-                         ("don_gia", d["don_gia"]), ("nguon", f"AI đọc {rec['ten'][:40]}")):
+                         ("don_gia", d["don_gia"]), ("nguon", f"AI đọc {rec['ten'][:40]}" + (f" · {d['ghi']}" if d.get("ghi") else ""))):
                 if v not in (None, ""): wc.Range(f"{c[k]}{rr}").Value = v
             for col, f in T.ct_cong_thuc(sh_ct, rr).items(): wc.Range(f"{col}{rr}").Formula = f
             wc.Range(f"{c['don_gia']}{rr}").NumberFormat = TIEN; wc.Range(f"{c['thanh_tien']}{rr}").NumberFormat = TIEN
@@ -87,6 +90,8 @@ def ghi_hd(khung, da, rec, sua, thu_muc_backup):
         loi = []
         if a.get("gia_tri_truoc_vat") and abs(gt_khung - a["gia_tri_truoc_vat"]) > 1: loi.append(f"giá trị HĐ trong khung {gt_khung:,.0f} ≠ đọc được {a['gia_tri_truoc_vat']:,.0f}")
         if abs(tong_khung - tong) > 1: loi.append(f"Σ dòng trong khung {tong_khung:,.0f} ≠ Σ bảng {tong:,.0f}")
+        g = a.get("gia_tri_truoc_vat")
+        if g and dong and abs(tong_khung - g) > g * 0.005: loi.append(f"Σ dòng {tong_khung:,.0f} ≠ giá trị HĐ {g:,.0f} (lệch {abs(tong_khung - g) / g:.1%})")
         if loi:
             wb.Close(False); wb = None
             return dict(ok=False, ly_do="Tự kiểm sau khi ghi KHÔNG KHỚP (" + "; ".join(loi) + ") — KHÔNG lưu, file giữ nguyên", backup=bk)
