@@ -134,6 +134,8 @@ def xu_ly_nhap_khung(b):
         if rec.get("trang_thai") != "CHO_DUYET": raise ValueError("Hồ sơ này không ở trạng thái chờ duyệt")
         if any(c["muc"] == "CHAN" for c in rec.get("co", [])): raise ValueError("Còn cờ CHẶN — chưa ghi khung được")
         if rec["loai"] not in ("HD_CDT", "HD_DOI_TAC"): raise ValueError("Ghi khung cho BoQ / ngân sách / gói thầu đang làm (đơn vị C) — file đã lưu đúng folder")
+        if rec.get("la_phu_luc") or str((rec.get("ai") or {}).get("loai") or "").startswith("PLHD"):     # chốt chặn lần 2 ngay trước khi ghi
+            raise ValueError("Đây là PHỤ LỤC HĐ — không ghi thành HĐ gốc. Duyệt HĐ gốc trước; ghi điều chỉnh từ phụ lục đang làm")
         kq = NK.ghi_hd(cfg["khung"], da, rec, b.get("sua") or {}, os.path.join(os.path.dirname(cfg["khung"]), "_backup"))
         NEN.sua_rec(DATA, da, i, ket_qua_khung=kq, **({"trang_thai": "DA_NHAP", "da_nhap_khung": True, "ma_hd": kq["ma_hd"]} if kq["ok"] else {}))
         if kq["ok"]: C.tao_cay(DATA, da, cfg["khung"])

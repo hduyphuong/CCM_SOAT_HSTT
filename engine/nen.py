@@ -221,6 +221,11 @@ def ap_ket_qua(data, da, i, khung, kq, meta):
     if loai not in ("HD_CDT", "HD_DOI_TAC"): co = [c for c in co if not re.match(r"^(vat_pct|pct_\w+): AI trả", c["mo_ta"])]   # % chỉ có nghĩa với HĐ
     moi_dt = bool(ma_dt) and not any(d["ma"] == ma_dt for d in dm["doi_tac"])
     if moi_dt and loai in ("HD_DOI_TAC", "BAO_GIA", "QUYET_TOAN"): co.append(dict(muc="LUU_Y", mo_ta=f"Đối tác mới (chưa có trong khung) — app đề xuất mã {ma_dt}, loại {loai_dt}"))
+    la_pl = str(kq.get("loai") or "").startswith("PLHD") or bool(re.search(r"phu luc|plhd|^pl[ _.-]?\d", khong_dau(rec["ten"]).lower()))
+    if la_pl and loai in ("HD_CDT", "HD_DOI_TAC"):                  # PHỤ LỤC chỉ duyệt SAU HĐ gốc — không bao giờ ghi thành HĐ gốc
+        ma_goc = "HD-CDT" if loai == "HD_CDT" else f"HD-{ma_dt}"
+        co.insert(0, dict(muc="CHAN", mo_ta=(f"Phụ lục HĐ — chưa có HĐ gốc {ma_goc} trong khung: anh duyệt HĐ gốc trước" if not any(h["ma_hd"] == ma_goc for h in dm["hop_dong"])
+                                              else f"Phụ lục của {ma_goc} — ghi điều chỉnh HĐ vào khung đang làm; file đã lưu làm chứng từ, KHÔNG ghi đè HĐ gốc")))
     rel = thu_muc_dich(loai, ma_dt, loai_dt, rec.get("goi")) or "_HE_THONG/cho_phan_loai"
     with KHOA:
         s = doc_so(data, da); rec = s[i]; cu = os.path.join(data, rec["duong_dan"])
@@ -229,7 +234,7 @@ def ap_ket_qua(data, da, i, khung, kq, meta):
             if os.path.normcase(dich) != os.path.normcase(cu) and "cho_phan_loai" in cu:
                 os.chmod(cu, stat.S_IWRITE); os.remove(cu)
             rec["duong_dan"] = os.path.relpath(dich, data)
-        rec.update(ai=kq, ai_meta=meta, co=co, thong_ke=tk, loai=loai, loai_ten=LOAI[loai][0], ma_doi_tac=ma_dt, loai_doi_tac=loai_dt, doi_tac_moi=moi_dt,
+        rec.update(ai=kq, ai_meta=meta, co=co, la_phu_luc=la_pl, thong_ke=tk, loai=loai, loai_ten=LOAI[loai][0], ma_doi_tac=ma_dt, loai_doi_tac=loai_dt, doi_tac_moi=moi_dt,
                    can_nhap=loai in CAN_NHAP, trang_thai="DA_NHAP" if rec.get("da_nhap_khung") else ("CHO_DUYET" if loai in CAN_NHAP else "DA_LUU"), loi=None, luc_ai=dt.datetime.now().isoformat(timespec="seconds"))
         s[i] = rec; ghi_so_nen(data, da, s)
 
