@@ -90,6 +90,10 @@ def ghi_r00(khung, path, ngay_hl, thu_muc_backup):
                                          f'IF(AND(I{r}<>"lot",I{r}<>VLOOKUP(F{r},{NH},3,0)),"LỆCH ĐVT",""))))')
             w2.Range(f"B{r}").NumberFormat = "dd/mm/yyyy"
             for col in ("J", "K", "L"): w2.Range(f"{col}{r}").NumberFormat = TIEN if col != "J" else "#,##0.00"
+        w9 = wb.Worksheets("90_Check")                                # vế phải phép kiểm #1 = tổng NS trên file R00 gốc
+        for r in range(2, 80):
+            if str(w9.Range(f"B{r}").Value or "").startswith("Tổng ngân sách R00"):
+                w9.Range(f"D{r}").Value = k["tong"]; w9.Range(f"G{r}").Value = f"{os.path.basename(path)[:60]} · BCTC dòng Lợi Nhuận"; break
         app.CalculateFullRebuild()
         f = app.WorksheetFunction; loi = []
         tong = f.SumIfs(w2.Range("L2:L5000"), w2.Range("C2:C5000"), "GOC")
