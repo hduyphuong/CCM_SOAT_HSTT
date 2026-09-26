@@ -35,6 +35,7 @@ KHOA = threading.Lock()                               # 1 lần ghi sổ tại 1
 
 def _json(o):
     if isinstance(o, (dt.date, dt.datetime)): return o.isoformat()
+    if isinstance(o, dt.time): return None if o == dt.time(0) else o.isoformat()   # ô ngày TRỐNG qua công thức = 0 ⇒ openpyxl đọc thành 00:00 ⇒ coi là chưa khai báo
     raise TypeError(type(o))
 def du_an():
     d = json.load(open(CAU_HINH, encoding="utf-8")) if os.path.exists(CAU_HINH) else {}
