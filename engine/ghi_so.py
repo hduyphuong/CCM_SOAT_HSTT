@@ -15,6 +15,8 @@ def ke_hoach(hs, kq, k):
         import cdt; return cdt.ke_hoach_cdt(hs, kq, k)
     kh = _ke_hoach_doi_tac(hs, kq, k)
     kh["phan"] = [dict(tt="N9_TT_DoiTac", ct="N7_HD_DoiTac_ChiTiet", ma_hd=kh["ma_hd"], dong_moi=kh["dong_hd_moi"], dong_tt=kh["dong_tt"], lk_hstt=kh["lk_hstt"])]
+    if hs.get("mau") == "HOAN_UNG_BCH":                                # hoàn ứng BCH: KHÔNG soát lũy kế (hồ sơ không có) — anh chốt 26/09; chỉ kiểm lũy kế khung TĂNG đúng bằng kỳ này
+        kh["phan"][0].update(lk_hstt=None, tang_hstt=sum(l["tt_kn"] for l in hs["lines"])); kh["lk_hstt"] = None
     return kh
 
 def _ke_hoach_doi_tac(hs, kq, k):
@@ -105,9 +107,16 @@ def ghi(path, kh, ten_file, thu_muc_backup):
     wb = None
     try:
         wb = app.Workbooks.Open(os.path.abspath(path))
+        lk_truoc = {ph["ma_hd"]: _lk(app, wb.Worksheets(ph["tt"]), ph["ma_hd"]) for ph in kh["phan"] if ph.get("tang_hstt") is not None}
         for ph in kh["phan"]: _ghi_phan(wb, ph, ten_file)
         app.CalculateFullRebuild()
         lk_chinh = None
+        for ph in kh["phan"]:                                         # ghi đúng số kỳ này (không so lũy kế hồ sơ)
+            if ph.get("tang_hstt") is None: continue
+            tang = _lk(app, wb.Worksheets(ph["tt"]), ph["ma_hd"]) - lk_truoc[ph["ma_hd"]]; lk_chinh = lk_truoc[ph["ma_hd"]] + tang
+            if abs(tang - ph["tang_hstt"]) > NGUONG:
+                wb.Close(False); wb = None
+                return dict(ok=False, ly_do=f"Sau khi ghi, {ph['ma_hd']} trong khung tăng {tang:,.0f} ≠ kỳ này của hồ sơ {ph['tang_hstt']:,.0f} — KHÔNG lưu, file giữ nguyên", backup=bk)
         for ph in kh["phan"]:                                         # tự kiểm từng phần có số đối chiếu
             if ph["lk_hstt"] is None: continue
             lk = _lk(app, wb.Worksheets(ph["tt"]), ph["ma_hd"]); lk_chinh = lk if lk_chinh is None else lk_chinh

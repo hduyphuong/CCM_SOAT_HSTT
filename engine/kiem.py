@@ -170,9 +170,9 @@ def _kiem(hs, k, van_tay_da_co=()):
             add("LUU_Y", "Theo HĐ", vt, l["kl_lk"], d["kl_hd"], f"KL lũy kế vượt KL HĐ: {l['ds'][:40]}")
         if l["dvt"] and d["dvt"] and na(l["dvt"]) != na(d["dvt"]): add("LUU_Y", "Theo HĐ", vt, l["dvt"], d["dvt"], f"ĐVT khác HĐ: {l['ds'][:40]}")
         lk_khung = k["lk_kl"].get((ma, d["stt"]), 0.0)
-        if abs(l["kl_kt"] - lk_khung) > 1e-6 and not any(x is not l and khop_dong(x, ds_dong) is d for x in hs["lines"]):
+        if hs.get("mau") != "HOAN_UNG_BCH" and abs(l["kl_kt"] - lk_khung) > 1e-6 and not any(x is not l and khop_dong(x, ds_dong) is d for x in hs["lines"]):
             add("LUU_Y", "Đợt trước", vt, round(l["kl_kt"], 3), round(lk_khung, 3), f"KL kỳ trước ≠ lũy kế đã ghi sổ ⇒ sẽ ghi ĐIỀU CHỈNH: {l['ds'][:40]}")
-    if abs(t[0] - k["lk_tien"][ma]) > NGUONG: add("LUU_Y", "Đợt trước", f"{S} dòng TỔNG", round(t[0]), round(k["lk_tien"][ma]), "Giá trị kỳ trước ≠ lũy kế đã ghi sổ trong khung")
+    if hs.get("mau") != "HOAN_UNG_BCH" and abs(t[0] - k["lk_tien"][ma]) > NGUONG: add("LUU_Y", "Đợt trước", f"{S} dòng TỔNG", round(t[0]), round(k["lk_tien"][ma]), "Giá trị kỳ trước ≠ lũy kế đã ghi sổ trong khung")
     if h["pct_tt_dot"] is not None and hs["gl"] is not None and t[2] > 0:
         pct_gl = -hs["gl"] / (t[2] * (1 + num(hs["vat"])))
         if abs(pct_gl - (1 - num(h["pct_tt_dot"]))) > 0.005: add("LUU_Y", "Theo HĐ", f"{S} dòng (GL)", f"{pct_gl:.1%}", f"{1 - num(h['pct_tt_dot']):.1%}", "% giữ lại khác HĐ")
