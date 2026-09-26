@@ -387,7 +387,7 @@ function the(r) {
   });
   return el;
 }
-const TT = {CHO_DUYET: ["Chờ duyệt", ""], DA_GHI_SO: ["Đã ghi sổ", "ok"], TRA_DOI: ["Trả đội", "er"], YEU_CAU_SUA: ["Yêu cầu sửa", "wa"]};
+const TT = {CHO_DUYET: ["Chờ duyệt", ""], DA_GHI_SO: ["Đã ghi sổ", "ok"], TRA_DOI: ["Trả đội", "er"], YEU_CAU_SUA: ["Yêu cầu sửa", "wa"], DANG_DOC_AI: ["AI đang đọc", "wa"], LOI_AI: ["AI đọc lỗi", "er"]};
 async function hoSo() {
   try { const ds = await api("/ho-so?du_an=" + $("#da").value);
     $("#tb-hs").innerHTML = `<tr><th>Nạp lúc</th><th>File</th><th>HĐ</th><th>Đợt</th><th class="n">Kỳ này</th><th>Cờ</th><th>Trạng thái</th></tr>` + (ds.length ? ds.map((r, i) => {

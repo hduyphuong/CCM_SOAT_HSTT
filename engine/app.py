@@ -6,13 +6,14 @@ Trang (GitHub Pages / file local) gọi vào đây. Dữ liệu CHỈ nằm trê
   GET  /bao-cao?du_an=X           → R0 tổng quan + 90_Check (đọc từ file khung)
   GET  /danh-muc?du_an=X · GET /ho-so-nen?du_an=X   → danh sách chọn (đối tác, HĐ, gói) · sổ hồ sơ nền
   POST /nap-nen {du_an, ten, b64, loai, ma_dt, loai_dt, goi, ghi_chu} → lưu BoQ/NS/gói/báo giá/HĐ/QT đúng folder
+  POST /doc-scan {du_an, ten, b64} → HSTT chỉ có bản scan: AI đọc số (chạy nền) rồi soát như Excel
   POST /doan-hstt {du_an, ten} · POST /dinh-kem {du_an, id, ten, b64} → PDF bản ký gắn vào HSTT Excel cùng HĐ + đợt
   GET  /du-lieu?du_an=X           → ĐẦU RA: hợp đồng · bill · báo cáo tài chính · đối tác · dòng tiền (đọc R1…R7 của file khung)"""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json, os, sys, base64, datetime as dt, threading, traceback
 from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC, cay as C, nen as NEN, nhap_khung as NK
+import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC, cay as C, nen as NEN, nhap_khung as NK, doc_scan as DS
 
 PORT = 8765
 # VỊ TRÍ DỮ LIỆU — chỉ ghi ở máy này (engine/cau_hinh_may.json, không lên git): {"DATA": "<thư mục dữ liệu>"}.
@@ -101,8 +102,10 @@ def xu_ly_duyet(b):
         if any(c["muc"] == "CHAN" for c in rec["co"]): return dict(ok=False, ly_do="Còn cờ CHẶN — nút Đồng ý bị khoá")
         with KHOA:
             cfg = du_an()[da]
-            hs = D.doc_file(rec["file"]); hs["van_tay"] = rec["van_tay"]
-            k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", []); kq = K.kiem(hs, k)                  # kiểm lại ngay trước khi ghi (khung có thể đã đổi)
+            hs = _doc_rec(rec); hs["van_tay"] = rec["van_tay"]
+            k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", [])
+            if rec.get("mau") == "SCAN_AI": DS.chuan_bi(hs, k)
+            kq = K.kiem(hs, k)                  # kiểm lại ngay trước khi ghi (khung có thể đã đổi)
             if kq["phan_loai"].get("ma_hd") == "HD-CDT" and (hs.get("tien") or {}).get("khau_tru") and "HD-CDT-KT" not in k["hd"]:   # CĐT khấu trừ ⇒ cần HĐ bên CHI
                 t = NK.tao_hd_cdt_kt(cfg["khung"], hs.get("vat") or 0, os.path.join(os.path.dirname(cfg["khung"]), "_backup"), nguon=f"webapp · {rec['ten'][:40]}")
                 if not t["ok"]: return dict(ok=False, ly_do="Không tạo được HĐ khấu trừ HD-CDT-KT: " + t["ly_do"])
@@ -134,7 +137,7 @@ def xu_ly_duyet(b):
         ma = (rec.get("phan_loai") or {}).get("ma_hd")
         for k_, v in list(s.items()):
             if k_ != i and v["trang_thai"] == "CHO_DUYET" and (v.get("phan_loai") or {}).get("ma_hd") == ma:
-                try: xu_ly_nap(dict(du_an=da, ten=v["ten"], b64=base64.b64encode(open(tuyet_doi(v["file"]), "rb").read()).decode()))
+                try: _soat_scan(da, k_) if v.get("mau") == "SCAN_AI" else xu_ly_nap(dict(du_an=da, ten=v["ten"], b64=base64.b64encode(open(tuyet_doi(v["file"]), "rb").read()).decode()))
                 except Exception as e: print("soát lại lỗi", v["ten"], e)
     return dict(ok=rec["trang_thai"] != "CHO_DUYET", ho_so=rec)
 
@@ -182,6 +185,49 @@ def xu_ly_nhap_khung(b):
         if kq["ok"]: C.tao_cay(DATA, da, cfg["khung"])
     if not kq["ok"]: raise ValueError(kq["ly_do"])
     return kq
+def _doc_rec(rec):
+    """Hồ sơ trong sổ nạp ⇒ dữ liệu soát: Excel đọc lại file; bản scan dựng từ kết quả AI đã lưu."""
+    if rec.get("mau") == "SCAN_AI": return DS.dung_hs(rec.get("ai") or {}, tuyet_doi(rec["file"]))
+    return D.doc_file(tuyet_doi(rec["file"]))
+
+def _soat_scan(da, i):
+    """Soát (lại) 1 HSTT bản scan từ kết quả AI đã lưu — cùng 4 lớp kiểm như Excel. Hồ sơ đã ghi sổ thì không đụng."""
+    cfg = du_an()[da]; s = so_nap(da); rec = s[i]
+    if rec["trang_thai"] == "DA_GHI_SO": return rec
+    hs = _doc_rec(rec); hs["van_tay"] = rec["van_tay"]
+    k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", []); DS.chuan_bi(hs, k)
+    cu = {v["van_tay"] for k_, v in s.items() if k_ != i and v["trang_thai"] != "TRA_DOI"}
+    kq = K.kiem(hs, k, cu); kh = G.ke_hoach(hs, kq, k) if kq["phan_loai"]["ma_hd"] else None
+    rec.update(trang_thai="CHO_DUYET", phan_loai=kq["phan_loai"], tom_tat=kq["tom_tat"], co=kq["co"], ke_hoach=kh)
+    s[i] = rec; luu_so(da, s); return rec
+
+def _chay_ai_scan(da, i):
+    """Luồng nền: AI đọc PDF (1–3 phút) ⇒ lưu kết quả ⇒ soát. Lỗi ⇒ trạng thái LOI_AI + cờ CHẶN ghi rõ lý do."""
+    try:
+        ai, meta = DS.doc(tuyet_doi(so_nap(da)[i]["file"]), CTY)
+        with KHOA:
+            s = so_nap(da); s[i].update(ai=ai, ai_meta=meta); luu_so(da, s); _soat_scan(da, i)
+    except Exception as e:
+        with KHOA:
+            s = so_nap(da); s[i].update(trang_thai="LOI_AI", co=[dict(muc="CHAN", lop="Hồ sơ", vi_tri="PDF", hstt="—", doi_chieu="—", mo_ta=f"AI đọc bản scan lỗi: {e}"[:400])]); luu_so(da, s)
+
+def xu_ly_doc_scan(b):
+    """HSTT CHỈ CÓ BẢN SCAN / PDF KÝ ⇒ AI đọc số (chạy nền). Trả ngay bản ghi 'DANG_DOC_AI'; giao diện hỏi lại /ho-so tới khi xong."""
+    da = b["du_an"]; ten = os.path.basename(b["ten"])
+    if not ten.lower().endswith(".pdf"): raise ValueError("AI đọc scan chỉ nhận file PDF")
+    thu_muc = os.path.join(he_thong(da), "nap"); os.makedirs(thu_muc, exist_ok=True)
+    raw = base64.b64decode(b["b64"]); vt = NEN.van_tay(raw); i = vt[:12]; dich = os.path.join(thu_muc, f"{i}_{ten}")
+    if not os.path.exists(dich): open(dich, "wb").write(raw); os.chmod(dich, 0o444)
+    with KHOA:
+        s = so_nap(da); cu = s.get(i)
+        if cu and cu["trang_thai"] == "DA_GHI_SO": raise ValueError("Bản scan này ĐÃ GHI SỔ trước đó")
+        if cu and cu["trang_thai"] == "DANG_DOC_AI": return cu
+        rec = dict(id=i, van_tay=vt, ten=ten, file=dich, luc=dt.datetime.now().isoformat(timespec="seconds"), mau="SCAN_AI", trang_thai="DANG_DOC_AI",
+                   phan_loai={}, tom_tat={}, co=[], ke_hoach=None, ly_do=None, ket_qua=None)
+        s[i] = rec; luu_so(da, s)
+    threading.Thread(target=_chay_ai_scan, args=(da, i), daemon=True).start()
+    return rec
+
 LY_DO_TAM = {"CONG_NHAT": "Công nhật không có HĐ", "MUA_LE": "Mua lẻ", "HOAN_UNG_BCH": "Hoàn ứng BCH", "KHAC": "Khác"}
 def xu_ly_hd_tam(b):
     """HĐ TẠM tự khai báo từ 1 HSTT chưa có HĐ (công nhật, mua lẻ, hoàn ứng BCH…): tạo đối tác + HĐ + bảng đơn giá theo dòng HSTT,
@@ -189,7 +235,7 @@ def xu_ly_hd_tam(b):
     import re as _re
     da, i = b["du_an"], b["id"]; cfg = du_an()[da]; ly_do = LY_DO_TAM.get(b.get("ly_do"), b.get("ly_do") or "Khác"); loai_dt = b.get("loai_dt") or "DTC"
     with KHOA:
-        rec = so_nap(da)[i]; hs = D.doc_file(rec["file"]); cv = hs["cover"]
+        rec = so_nap(da)[i]; hs = _doc_rec(rec); cv = hs["cover"]
         ten = _re.sub(r"\s{2,}", " ", _re.sub(r"\([^)]*\)", " ", str(cv.get("ten_don_vi") or ""))).strip(" -–,;")
         if not ten: raise ValueError("HSTT không ghi tên đơn vị — không tạo được HĐ tạm")
         dm = NEN.danh_muc(cfg["khung"]); d = NEN.khop_doi_tac(ten, dm["doi_tac"]); ma = d["ma"] if d else NEN.ma_de_xuat(ten)
@@ -207,7 +253,7 @@ def xu_ly_hd_tam(b):
                        os.path.join(os.path.dirname(cfg["khung"]), "_backup"))
         if not kq["ok"]: raise ValueError(kq["ly_do"])
         C.tao_cay(DATA, da, cfg["khung"])
-    r = xu_ly_nap(dict(du_an=da, ten=rec["ten"], b64=base64.b64encode(open(rec["file"], "rb").read()).decode()))       # soát lại với HĐ tạm vừa tạo
+    r = _soat_scan(da, i) if rec.get("mau") == "SCAN_AI" else xu_ly_nap(dict(du_an=da, ten=rec["ten"], b64=base64.b64encode(open(rec["file"], "rb").read()).decode()))       # soát lại với HĐ tạm vừa tạo
     s = so_nap(da); s[r["id"]]["hd_tam"] = dict(ma_hd=kq["ma_hd"], ly_do=ly_do, luc=dt.datetime.now().isoformat(timespec="seconds")); luu_so(da, s)
     return s[r["id"]]
 def xu_ly_doan_hstt(b):
@@ -253,6 +299,7 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/dinh-kem": return self._tra(200, xu_ly_dinh_kem(b))
             if self.path == "/nhap-khung": return self._tra(200, xu_ly_nhap_khung(b))
             if self.path == "/hd-tam": return self._tra(200, xu_ly_hd_tam(b))
+            if self.path == "/doc-scan": return self._tra(200, xu_ly_doc_scan(b))
             if self.path == "/doc-lai": return self._tra(200, NEN.doc_lai(DATA, b["du_an"], b["id"]))
             self._tra(404, dict(loi="không có đường dẫn này"))
         except Exception as e: traceback.print_exc(); self._tra(500, dict(loi=str(e)))

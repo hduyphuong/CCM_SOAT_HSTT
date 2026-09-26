@@ -115,7 +115,10 @@ def kiem_du_an(hs, k):
 
 def kiem(hs, k, van_tay_da_co=()):
     kq = _kiem(hs, k, van_tay_da_co)
-    kq["co"] = _dang(kiem_du_an(hs, k)) + kq["co"]
+    da = kiem_du_an(hs, k)
+    if hs.get("mau") == "SCAN_AI" and kq["phan_loai"].get("ma_hd"):    # bản scan: tên dự án do AI diễn đạt, không tin được; HĐ đã khớp khung dự án này ⇒ chỉ lưu ý
+        da = [("LUU_Y",) + tuple(x[1:5]) + (x[5] + " (bản scan — HĐ đã khớp khung dự án này, anh kiểm bằng mắt)",) if x[0] == "CHAN" else x for x in da]
+    kq["co"] = _dang(da) + kq["co"]
     return kq
 
 def _kiem(hs, k, van_tay_da_co=()):
@@ -160,6 +163,8 @@ def _kiem(hs, k, van_tay_da_co=()):
         if d is None and hs.get("mau") == "HOAN_UNG_BCH":
             if l.get("nhom_moi") and l["nhom_moi"][3] not in k["ns"]: add("LUU_Y", "Theo HĐ", vt, l["nhom_moi"][3], "—", f"Mã NS {l['nhom_moi'][3]} không có trong ngân sách khung")
             continue                                                  # HĐ tạm BCH: dòng theo mã NS tự thêm khi ghi sổ
+        if d is None and hs.get("mau") == "SCAN_AI":                  # bản scan: AI đọc tên dòng không khớp HĐ ⇒ KHÔNG tự thêm phát sinh
+            add("CHAN", "Theo HĐ", vt, l["ds"][:40], "—", "Dòng AI đọc từ scan KHÔNG khớp dòng nào trong HĐ — cần bản Excel hoặc anh đối chiếu tay"); continue
         if d is None:
             if abs(l["kl_lk"]) > 0 or abs(l["tt_lk"]) > 0:
                 add("LUU_Y", "Theo HĐ", vt, l["ds"][:40], "—", "Dòng chưa có trong HĐ — ghi sổ sẽ thêm dòng PHÁT SINH (N7), cần phụ lục")
@@ -172,7 +177,7 @@ def _kiem(hs, k, van_tay_da_co=()):
         lk_khung = k["lk_kl"].get((ma, d["stt"]), 0.0)
         if hs.get("mau") != "HOAN_UNG_BCH" and abs(l["kl_kt"] - lk_khung) > 1e-6 and not any(x is not l and khop_dong(x, ds_dong) is d for x in hs["lines"]):
             add("LUU_Y", "Đợt trước", vt, round(l["kl_kt"], 3), round(lk_khung, 3), f"KL kỳ trước ≠ lũy kế đã ghi sổ ⇒ sẽ ghi ĐIỀU CHỈNH: {l['ds'][:40]}")
-    if hs.get("mau") != "HOAN_UNG_BCH" and abs(t[0] - k["lk_tien"][ma]) > NGUONG: add("LUU_Y", "Đợt trước", f"{S} dòng TỔNG", round(t[0]), round(k["lk_tien"][ma]), "Giá trị kỳ trước ≠ lũy kế đã ghi sổ trong khung")
+    if hs.get("mau") != "HOAN_UNG_BCH" and hs.get("loai_ai") != "TAM_UNG" and abs(t[0] - k["lk_tien"][ma]) > NGUONG: add("LUU_Y", "Đợt trước", f"{S} dòng TỔNG", round(t[0]), round(k["lk_tien"][ma]), "Giá trị kỳ trước ≠ lũy kế đã ghi sổ trong khung")
     if h["pct_tt_dot"] is not None and hs["gl"] is not None and t[2] > 0:
         pct_gl = -hs["gl"] / (t[2] * (1 + num(hs["vat"])))
         if abs(pct_gl - (1 - num(h["pct_tt_dot"]))) > 0.005: add("LUU_Y", "Theo HĐ", f"{S} dòng (GL)", f"{pct_gl:.1%}", f"{1 - num(h['pct_tt_dot']):.1%}", "% giữ lại khác HĐ")

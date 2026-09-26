@@ -105,7 +105,7 @@ async function thePdfHstt(f) {
   el.innerHTML = `<div class="hd"><h3>${esc(f.name)}</h3><span class="chip">PDF — bản ký HSTT</span></div><div class="pad note">Đang tìm HSTT Excel khớp…</div>`;
   try {
     const ds = await api("/doan-hstt", {du_an: $("#da").value, ten: f.name});
-    if (!ds.length) { el.querySelector(".pad").innerHTML = `Chưa có HSTT Excel nào trong dự án để gắn. <b>Anh nạp file Excel của đợt này trước</b>, rồi thả lại PDF — số liệu soát từ Excel, PDF là bản ký đi kèm.`; return el }
+    if (!ds.length) { el.querySelector(".pad").innerHTML = `Chưa có HSTT Excel nào trong dự án để gắn. <b>Anh nạp file Excel của đợt này trước</b>, rồi thả lại PDF — số liệu soát từ Excel, PDF là bản ký đi kèm.`; khoiAiScan(el, f); return el }
     const tot = ds[0].diem > 0 ? ds[0].id : "";
     el.querySelector(".pad").outerHTML = `<div class="pad"><div class="note" style="margin-bottom:8px">PDF là <b>bản scan có ký</b> — không đọc được số. App gắn nó vào HSTT Excel cùng HĐ + đợt;
       khi HSTT đó được ghi sổ, PDF tự vào cùng folder đợt.</div><div class="nen-form">
@@ -123,5 +123,25 @@ async function thePdfHstt(f) {
       catch (e) { kq.className = "res er pdf-kq"; kq.textContent = "Lỗi: " + e.message }
     };
   } catch (e) { el.querySelector(".pad").textContent = "Lỗi: " + e.message }
+  khoiAiScan(el, f);
   return el;
+}
+// ── HSTT chỉ có bản scan: AI đọc số (engine chạy nền 1–3 phút) rồi soát như HSTT Excel ──
+function khoiAiScan(el, f) {
+  const d = document.createElement("div"); d.className = "acts"; d.style.background = "#f6f2ff";
+  d.innerHTML = `<b style="color:#5b3fa0">Chỉ có bản scan?</b><span class="note">Cho <b>AI đọc số trên bản scan</b> rồi soát như HSTT Excel (1–3 phút, dùng gói Claude của anh).
+    Số AI không chắc / số học không khép ⇒ bị CHẶN để anh kiểm.</span><button class="btn fix ai-scan">🤖 AI đọc bản scan</button>`;
+  el.appendChild(d);
+  const b = d.querySelector(".ai-scan");
+  b.onclick = async () => {
+    b.disabled = true; b.textContent = "AI đang đọc… (1–3 phút)";
+    try {
+      let r = await api("/doc-scan", {du_an: $("#da").value, ten: f.name, b64: await b64(f)});
+      for (let n = 0; r.trang_thai === "DANG_DOC_AI" && n < 120; n++) {
+        await new Promise(z => setTimeout(z, 5000)); b.textContent = `AI đang đọc… ${(n + 1) * 5}s`;
+        const ds = await api("/ho-so?du_an=" + encodeURIComponent($("#da").value)); r = ds.find(x => x.id === r.id) || r;
+      }
+      el.replaceWith(the(r));
+    } catch (e) { b.disabled = false; b.textContent = "🤖 AI đọc bản scan"; alert("Lỗi: " + e.message) }
+  };
 }
