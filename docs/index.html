@@ -250,6 +250,7 @@ table.bctc tr.l1 td{background:#f5f3fa!important}table.bctc tr.tong td{backgroun
 .nen-form{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}.nen-form label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;font-weight:600;color:var(--mu);flex:0 1 240px}
 .nen-form select,.nen-form input{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--ru);border-radius:8px;background:#fff;min-width:0}
 .nen-form select:focus,.nen-form input:focus{outline:none;border-color:var(--ora);box-shadow:0 0 0 3px rgba(232,85,42,.12)}
+.hd-tam select{font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--ru);border-radius:8px;background:#fff}
 .n-dong{font-size:12.5px;padding:6px 0;border-bottom:1px dashed var(--ru2)}
 </style>
 </head>
@@ -360,7 +361,18 @@ function the(r) {
     <button class="btn no" ${r.trang_thai === "DA_GHI_SO" ? "disabled" : ""} data-a="TRA_DOI">✕ Trả đội</button>
     <span class="res ${r.ket_qua ? (r.ket_qua.ok ? "ok" : "er") : ""}">${r.ket_qua ? (r.ket_qua.ok ? `Đã ghi ${r.ket_qua.so_dong_tt} dòng · lũy kế khung ${fmt(r.ket_qua.luy_ke_khung)} · đã backup${r.luu_tru ? " · đã xếp vào " + esc(r.luu_tru.split("\\").slice(-5, -1).join("\\")) : ""}` : esc(r.ket_qua.ly_do)) : r.ly_do ? "Lý do: " + esc(r.ly_do) : ""}</span>
     ${nChan ? `<span class="note">Còn cờ CHẶN nên nút Đồng ý bị khoá.</span>` : ""}
+  </div>${co.some(c => c.muc === "CHAN" && String(c.mo_ta).includes("CHƯA có hợp đồng")) && r.trang_thai === "CHO_DUYET" ? `<div class="acts hd-tam" style="background:#fff8ee">
+    <b style="color:#9a5b00">Chưa có HĐ?</b><span class="note">Tạo <b>HĐ tạm tự khai báo</b> từ chính hồ sơ này (bảng đơn giá theo dòng HSTT, TT 100%) — ghi chú "chưa có HĐ chính thức".</span>
+    <select class="ht-loai"><option value="DTC">Đội thi công</option><option value="NTP">Thầu phụ</option><option value="NCC">Nhà cung cấp</option><option value="DVK">Dịch vụ khác</option></select>
+    <select class="ht-lydo"><option value="CONG_NHAT">Công nhật không có HĐ</option><option value="MUA_LE">Mua lẻ</option><option value="HOAN_UNG_BCH">Hoàn ứng BCH</option><option value="KHAC">Khác</option></select>
+    <button class="btn fix ht-nut">➕ Tạo HĐ tạm &amp; soát lại</button>` : ""}
   </div>`;
+  const ht = el.querySelector(".ht-nut"); if (ht) ht.onclick = async () => {
+    if (!confirm("Tạo HĐ TẠM cho đơn vị này trong khung? (ghi chú: chưa có HĐ chính thức)")) return;
+    ht.disabled = true; ht.textContent = "Đang tạo HĐ tạm…";
+    try { el.replaceWith(the(await api("/hd-tam", {du_an: $("#da").value, id: r.id, loai_dt: el.querySelector(".ht-loai").value, ly_do: el.querySelector(".ht-lydo").value}))) }
+    catch (e) { alert("Lỗi: " + e.message); ht.disabled = false; ht.textContent = "➕ Tạo HĐ tạm & soát lại" }
+  };
   el.querySelectorAll("button[data-a]").forEach(b => b.onclick = async () => {
     const a = b.dataset.a; let ly_do = "";
     if (a !== "DONG_Y") { ly_do = prompt(a === "TRA_DOI" ? "Lý do trả đội:" : "Nội dung cần chỉnh sửa:"); if (ly_do === null) return }

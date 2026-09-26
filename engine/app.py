@@ -156,6 +156,33 @@ def xu_ly_nhap_khung(b):
         if kq["ok"]: C.tao_cay(DATA, da, cfg["khung"])
     if not kq["ok"]: raise ValueError(kq["ly_do"])
     return kq
+LY_DO_TAM = {"CONG_NHAT": "Công nhật không có HĐ", "MUA_LE": "Mua lẻ", "HOAN_UNG_BCH": "Hoàn ứng BCH", "KHAC": "Khác"}
+def xu_ly_hd_tam(b):
+    """HĐ TẠM tự khai báo từ 1 HSTT chưa có HĐ (công nhật, mua lẻ, hoàn ứng BCH…): tạo đối tác + HĐ + bảng đơn giá theo dòng HSTT,
+    % TT 100%, đánh dấu 'Hồ sơ còn thiếu = HĐ chính thức'. Rồi soát lại HSTT đó."""
+    import re as _re
+    da, i = b["du_an"], b["id"]; cfg = du_an()[da]; ly_do = LY_DO_TAM.get(b.get("ly_do"), b.get("ly_do") or "Khác"); loai_dt = b.get("loai_dt") or "DTC"
+    with KHOA:
+        rec = so_nap(da)[i]; hs = D.doc_file(rec["file"]); cv = hs["cover"]
+        ten = _re.sub(r"\s{2,}", " ", _re.sub(r"\([^)]*\)", " ", str(cv.get("ten_don_vi") or ""))).strip(" -–,;")
+        if not ten: raise ValueError("HSTT không ghi tên đơn vị — không tạo được HĐ tạm")
+        dm = NEN.danh_muc(cfg["khung"]); d = NEN.khop_doi_tac(ten, dm["doi_tac"]); ma = d["ma"] if d else NEN.ma_de_xuat(ten)
+        if any(h["ma_hd"] == f"HD-{ma}" for h in dm["hop_dong"]): raise ValueError(f"HD-{ma} đã có trong khung — không cần HĐ tạm")
+        hom_nay = dt.date.today().strftime("%d/%m/%Y"); ngay = cv.get("ngay")
+        a = dict(loai="HD_DOI_TAC", so_hd=cv.get("so_hd") or f"HĐ TẠM {ma}", ngay_ky=str(ngay)[:10] if ngay else dt.date.today().isoformat(), doi_tac_ten=ten,
+                 loai_doi_tac=loai_dt, noi_dung=f"HĐ TẠM tự khai báo — {ly_do}", dang_hd="DON_GIA", gia_tri_truoc_vat=None, vat_pct=hs.get("vat") or 0,
+                 pct_tam_ung=0, pct_tt_dot=1, pct_tt_quyet_toan=1, han_tt_ngay=0, don_vi_han="LICH",
+                 bang=[dict(stt=l["stt"], noi_dung=l["ds"], dvt=l["dvt"], kl=None, don_gia=l["dg"], thanh_tien=None) for l in hs["lines"]],
+                 nguon=f"HĐ TẠM tự khai báo từ HSTT {rec['ten'][:50]} · {hom_nay}",
+                 ghi_chu=f"CHƯA CÓ HĐ CHÍNH THỨC — HĐ tạm ({ly_do}) tạo ngày {hom_nay} từ HSTT; bổ sung HĐ thật thì cập nhật lại",
+                 ho_so_thieu=f"HĐ chính thức (đang dùng HĐ TẠM — {ly_do})")
+        kq = NK.ghi_hd(cfg["khung"], da, dict(loai="HD_DOI_TAC", ma_doi_tac=ma, loai_doi_tac=loai_dt, ten=rec["ten"], goi=None, ai=a), {},
+                       os.path.join(os.path.dirname(cfg["khung"]), "_backup"))
+        if not kq["ok"]: raise ValueError(kq["ly_do"])
+        C.tao_cay(DATA, da, cfg["khung"])
+    r = xu_ly_nap(dict(du_an=da, ten=rec["ten"], b64=base64.b64encode(open(rec["file"], "rb").read()).decode()))       # soát lại với HĐ tạm vừa tạo
+    s = so_nap(da); s[r["id"]]["hd_tam"] = dict(ma_hd=kq["ma_hd"], ly_do=ly_do, luc=dt.datetime.now().isoformat(timespec="seconds")); luu_so(da, s)
+    return s[r["id"]]
 def xu_ly_doan_hstt(b):
     ds = list(so_nap(b["du_an"]).values()); diem = dict((i, d) for d, i in NEN.doan_hstt(b["ten"], ds))
     return sorted([dict(id=r["id"], ten=r["ten"], ma_hd=(r.get("phan_loai") or {}).get("ma_hd"), dot=(r.get("tom_tat") or {}).get("dot"),
@@ -198,6 +225,7 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/doan-hstt": return self._tra(200, xu_ly_doan_hstt(b))
             if self.path == "/dinh-kem": return self._tra(200, xu_ly_dinh_kem(b))
             if self.path == "/nhap-khung": return self._tra(200, xu_ly_nhap_khung(b))
+            if self.path == "/hd-tam": return self._tra(200, xu_ly_hd_tam(b))
             if self.path == "/doc-lai": return self._tra(200, NEN.doc_lai(DATA, b["du_an"], b["id"]))
             self._tra(404, dict(loi="không có đường dẫn này"))
         except Exception as e: traceback.print_exc(); self._tra(500, dict(loi=str(e)))

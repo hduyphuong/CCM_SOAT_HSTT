@@ -68,7 +68,8 @@ def ghi_hd(khung, da, rec, sua, thu_muc_backup):
               "pct_tam_ung": a.get("pct_tam_ung"), "pct_tt_dot": a.get("pct_tt_dot"), "pct_tt_quyet_toan": a.get("pct_tt_quyet_toan"),
               "han_tt_ngay": a.get("han_tt_ngay"), "don_vi_han": a.get("don_vi_han"), "han_qt_ngay": a.get("han_qt_ngay"), "han_tra_gl_ngay": a.get("han_tra_gl_ngay"),
               "bao_hanh_thang": a.get("bao_hanh_thang"), "trang_thai": "DANG_TH",
-              "nguon": f"AI đọc {rec['ten'][:60]} · anh duyệt {dt.datetime.now():%d/%m/%Y}", "ghi_chu": (a.get("ghi_chu") or "")[:250]}
+              "nguon": a.get("nguon") or f"AI đọc {rec['ten'][:60]} · anh duyệt {dt.datetime.now():%d/%m/%Y}", "ghi_chu": (a.get("ghi_chu") or "")[:250],
+              "ho_so_thieu": a.get("ho_so_thieu")}
         for k, v in gt.items():
             if k in cot and v not in (None, ""): wh.Range(f"{cot[k]}{r}").Value = v
         for k, f in (("ngay_ky", NG), ("gia_tri_truoc_vat", TIEN), ("vat_pct", PT), ("pct_tam_ung", PT), ("pct_tt_dot", PT), ("pct_tt_quyet_toan", PT)):
