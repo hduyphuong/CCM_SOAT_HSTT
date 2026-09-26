@@ -131,7 +131,7 @@ def kiem_cdt(hs, k, van_tay_da_co=()):
     if tien.get("de_nghi") is not None and ptt:
         tinh = th * ptt - tien.get("thu_hoi", 0) - tien.get("khau_tru", 0)
         if abs(tien["de_nghi"] - tinh) > NGUONG: add("CHAN", "Số học", "PHIẾU ĐNTT", round(tien["de_nghi"]), round(tinh), "Đề nghị TT ≠ có VAT × %TT − thu hồi − khấu trừ")
-    if tien.get("khau_tru") and MA_KT not in k["hd"]: add("LUU_Y", "Hồ sơ", "PHIẾU ĐNTT", round(tien["khau_tru"]), "—", f"Khung chưa có HĐ {MA_KT} bên đối tác — khấu trừ sẽ KHÔNG được ghi")
+    if tien.get("khau_tru") and MA_KT not in k["hd"]: add("LUU_Y", "Hồ sơ", "PHIẾU ĐNTT", round(tien["khau_tru"]), "—", f"Khung chưa có HĐ khấu trừ {MA_KT} — bấm Đồng ý thì app TỰ TẠO rồi ghi khấu trừ bên CHI (÷ 1+VAT)")
     return dict(phan_loai=pl, co=_dang(co), tom_tat=tom, khop=khop)
 
 def ke_hoach_cdt(hs, kq, k):

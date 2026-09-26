@@ -103,6 +103,10 @@ def xu_ly_duyet(b):
             cfg = du_an()[da]
             hs = D.doc_file(rec["file"]); hs["van_tay"] = rec["van_tay"]
             k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", []); kq = K.kiem(hs, k)                  # kiểm lại ngay trước khi ghi (khung có thể đã đổi)
+            if kq["phan_loai"].get("ma_hd") == "HD-CDT" and (hs.get("tien") or {}).get("khau_tru") and "HD-CDT-KT" not in k["hd"]:   # CĐT khấu trừ ⇒ cần HĐ bên CHI
+                t = NK.tao_hd_cdt_kt(cfg["khung"], hs.get("vat") or 0, os.path.join(os.path.dirname(cfg["khung"]), "_backup"), nguon=f"webapp · {rec['ten'][:40]}")
+                if not t["ok"]: return dict(ok=False, ly_do="Không tạo được HĐ khấu trừ HD-CDT-KT: " + t["ly_do"])
+                k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", []); kq = K.kiem(hs, k)
             if any(c["muc"] == "CHAN" for c in kq["co"]): return dict(ok=False, ly_do="Kiểm lại trước khi ghi phát sinh cờ CHẶN", co=kq["co"])
             kh = G.ke_hoach(hs, kq, k)
             kq_ghi = G.ghi(cfg["khung"], kh, rec["ten"], os.path.join(os.path.dirname(cfg["khung"]), "_backup"))

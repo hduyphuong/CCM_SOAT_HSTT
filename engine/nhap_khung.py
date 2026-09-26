@@ -148,3 +148,52 @@ def ghi_phu_luc(khung, da, rec, thu_muc_backup):
     finally:
         if wb is not None: wb.Close(False)
         app.Quit()
+
+
+KT_NHOM = [("KT_TIEN_ICH", "CĐT khấu trừ tiện ích công trình (điện, nước…)", "lot", "Prelim_2", "1", "Giảm trừ chi phí sử dụng tiện ích công trình"),
+           ("KT_PHAT", "CĐT phạt (tiến độ, chất lượng, an toàn…)", "lot", "Prelim_7", "2", "Phạt (tiến độ, chất lượng, an toàn…)"),
+           ("KT_VAT_TU", "CĐT cấp vật tư — trừ vào thanh toán", "lot", "", "3", "Vật tư CĐT cấp, trừ vào thanh toán")]
+def tao_hd_cdt_kt(khung, vat, thu_muc_backup, nguon="webapp"):
+    """Tạo HĐ 'CĐT khấu trừ' HD-CDT-KT bên ĐỐI TÁC (N6 + 3 dòng N7 + 3 nhóm N1 Q:T) từ HĐ CĐT đã có ở N4.
+    Số khấu trừ trên HSTT CĐT là SAU thuế ⇒ khi ghi N9: giá trị trước VAT = khấu trừ ÷ (1+VAT), %TT 100%, hạn TT = hạn CĐT (dòng tiền ròng không đổi)."""
+    MA = "HD-CDT-KT"; os.makedirs(thu_muc_backup, exist_ok=True)
+    bk = os.path.join(thu_muc_backup, f"{os.path.splitext(os.path.basename(khung))[0]}_truoc_tao_{MA}_{dt.datetime.now():%Y%m%d_%H%M%S}.xlsx"); shutil.copy2(khung, bk)
+    pythoncom.CoInitialize(); app = w32.DispatchEx("Excel.Application"); app.Visible = False; app.DisplayAlerts = False; wb = None
+    try:
+        wb = app.Workbooks.Open(os.path.abspath(khung)); w1, w4, w6, w7 = (wb.Worksheets(s) for s in ("N1_DanhMuc", "N4_HD_CDT", "N6_HD_DoiTac", "N7_HD_DoiTac_ChiTiet"))
+        if _tim(w6, "A", MA, 2): wb.Close(False); wb = None; return dict(ok=True, da_co=True, ma_hd=MA, backup=bk)
+        r4 = _tim(w4, "A", "HD-CDT", 2)
+        if not r4: wb.Close(False); wb = None; return dict(ok=False, ly_do="Khung chưa có HĐ CĐT (HD-CDT) — nạp HĐ CĐT trước", backup=bk)
+        c4, c6 = T.cot(T.COT_HD["N4_HD_CDT"]), T.cot(T.COT_HD["N6_HD_DoiTac"]); g4 = lambda k: w4.Range(f"{c4[k]}{r4}").Value
+        for ma_nh, ten, dvt, ma_ns, _s, _n in KT_NHOM:                       # N1 Q:T — nhóm CV khấu trừ ⇒ mã NS
+            if not _tim(w1, "Q", ma_nh, 3):
+                r = _dong_cuoi(w1, "Q", 2) + 1
+                for col, v in (("Q", ma_nh), ("R", ten), ("S", dvt), ("T", ma_ns)):
+                    if v: w1.Range(f"{col}{r}").Value = v
+        r = _dong_cuoi(w6, "A", 1) + 1; hom_nay = f"{dt.datetime.now():%d/%m/%Y}"
+        gt = {"ma_hd": MA, "loai_ghi": "GOC", "ma_doi_tac": g4("ma_doi_tac"), "ma_goi": "", "so_hd": f"{g4('so_hd') or ''} — các khoản CĐT khấu trừ",
+              "ngay_ky": w4.Range(f"{c4['ngay_ky']}{r4}").Value2,      # Value2 = serial: KHÔNG chuyền datetime qua COM (lùi 7 giờ)
+              "noi_dung": "CĐT khấu trừ / phạt / cấp vật tư — chi phí của mình, trừ thẳng vào tiền CĐT thanh toán", "dang_hd": "KHAU_TRU",
+              "gia_tri_truoc_vat": 0, "vat_pct": vat, "pct_tam_ung": 0, "pct_tt_dot": 1, "pct_tt_quyet_toan": 1,
+              "han_tt_ngay": g4("han_tt_ngay"), "don_vi_han": g4("don_vi_han"), "trang_thai": "DANG_TH",
+              "nguon": f"{nguon} · tự tạo từ HĐ CĐT {g4('so_hd') or ''} · {hom_nay}",
+              "ghi_chu": f"Số khấu trừ trên HSTT CĐT là sau thuế ⇒ ghi trước VAT = khấu trừ ÷ {1 + vat:g} · hạn TT = hạn CĐT để dòng tiền ròng không đổi"}
+        for k, v in gt.items():
+            if k in c6 and v not in (None, ""): w6.Range(f"{c6[k]}{r}").Value = v
+        for k, f in (("ngay_ky", NG), ("gia_tri_truoc_vat", TIEN), ("vat_pct", PT), ("pct_tam_ung", PT), ("pct_tt_dot", PT), ("pct_tt_quyet_toan", PT)):
+            w6.Range(f"{c6[k]}{r}").NumberFormat = f
+        c = T.cot(T.CT_COLS); r0 = _dong_cuoi(w7, "A", 1) + 1
+        for j, (ma_nh, _t, dvt, _ns, stt, nd) in enumerate(KT_NHOM):         # N7: 3 dòng 'lot' (KL/ĐG trống — HĐ khung, số theo từng đợt khấu trừ)
+            rr = r0 + j
+            for k, v in (("ma_hd", MA), ("stt", stt), ("pham_vi", "TRONG_HD"), ("noi_dung", nd), ("dvt", dvt), ("nhom", ma_nh), ("nguon", f"{nguon} · tự tạo {hom_nay}")):
+                w7.Range(f"{c[k]}{rr}").Value = v
+            for col, f in T.ct_cong_thuc("N7_HD_DoiTac_ChiTiet", rr).items(): w7.Range(f"{col}{rr}").Formula = f
+        app.CalculateFullRebuild()
+        loi = [f"dòng {r0 + j}: {w7.Range(f'{c['kiem_tra']}{r0 + j}').Value}" for j in range(3) if w7.Range(f"{c['kiem_tra']}{r0 + j}").Value not in (None, "")]
+        loi += [f"dòng {r0 + j} chưa ra mã NS" for j in range(2) if not w7.Range(f"{c['ma_ns']}{r0 + j}").Value]
+        if loi: wb.Close(False); wb = None; return dict(ok=False, ly_do="Tự kiểm HD-CDT-KT không đạt (" + "; ".join(loi) + ") — KHÔNG lưu", backup=bk)
+        wb.Save(); wb.Close(False); wb = None
+        return dict(ok=True, da_co=False, ma_hd=MA, backup=bk, thong_bao=f"Đã tạo {MA} (3 dòng: tiện ích → Prelim_2 · phạt → Prelim_7 · vật tư CĐT cấp) · đã backup")
+    finally:
+        if wb is not None: wb.Close(False)
+        app.Quit()
