@@ -58,8 +58,8 @@ def _ghi_phan(wb, ph, ten_file):
         if last >= 2: w7.Range(f"A{last}:O{last}").Copy(w7.Range(f"A{r}"))
         else:                                                         # sheet trống: không có dòng mẫu ⇒ dựng công thức
             for col, f in T.ct_cong_thuc(ph["ct"], r).items(): w7.Range(f"{col}{r}").Formula = f
-        for col, v in (("A", ma), ("B", d["stt"]), ("D", "NGOAI_HD"), ("E", d["noi_dung"]), ("F", d["dvt"]), ("G", None),
-                       ("H", d["don_gia"]), ("J", ""), ("K", ""), ("O", f"webapp — phát sinh từ {ten_file[:40]}")):
+        for col, v in (("A", ma), ("B", d["stt"]), ("D", d.get("pham_vi") or "NGOAI_HD"), ("E", d["noi_dung"]), ("F", d["dvt"]), ("G", None),
+                       ("H", d["don_gia"]), ("J", ""), ("K", d.get("nhom") or ""), ("O", d.get("nguon") or f"webapp — phát sinh từ {ten_file[:40]}")):
             w7.Range(f"{col}{r}").Value = v
     for x in ph["dong_tt"]:                                           # dòng thanh toán
         last = w9.Cells(w9.Rows.Count, 1).End(XL_UP).Row; r = last + 1

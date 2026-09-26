@@ -5,6 +5,45 @@ from collections import defaultdict
 from doc_hstt import na, num, _ngay
 NGUONG = 10
 MA_KT = "HD-CDT-KT"                 # HĐ "CĐT khấu trừ" bên đối tác (N6) — dòng 1 = tiện ích, 2 = phạt, 3 = cấp vật tư
+MA_PHAT = "HD-CDT-PHAT"             # HĐ "CĐT phạt" bên đối tác (N6) — VAT 0% (phạt không có hoá đơn VAT) · anh chốt 26/09
+MA_VT = "HD-CDT-VT"                 # HĐ "CĐT cấp vật tư" bên đối tác (N6) — mỗi loại vật tư 1 dòng; CĐT KHÔNG trừ trên phiếu mà tự cắt tiền khi chuyển
+VT_NHOM = [("VT_CDT_GACH", "CĐT cấp gạch xây — CĐT cắt tiền", "Viên", "NCC_Gach", "GACH"),          # (nhóm, tên, ĐVT, mã NS, từ khoá tên vật tư)
+           ("VT_CDT_XIMANG", "CĐT cấp xi măng — CĐT cắt tiền", "Bao", "NCC_VLXD", "XI MANG")]
+def nhom_vt(ten): return next((n[0] for n in VT_NHOM if n[4] in na(ten)), "")
+
+def _doc_vat_tu(wb):
+    """Sheet 'TH VATTU' (bảng tổng hợp vật tư CĐT cấp): mỗi dòng KL kỳ trước / đợt này / lũy kế + ĐG + thành tiền; dòng TỔNG CỘNG TRƯỚC THUẾ."""
+    sn = next((s for s in wb.sheetnames if "VATTU" in na(s).replace(" ", "") and "HAO" not in na(s)), None)
+    if not sn: return None
+    rows = [list(r) for r in wb[sn].iter_rows(min_row=1, max_row=80, max_col=16, values_only=True)]
+    h = next((i for i, r in enumerate(rows) if any(na(c).startswith("NOI DUNG KHAU TRU") for c in r)), None)
+    if h is None: return None
+    H, S = [na(c) for c in rows[h]], [na(c) for c in rows[h + 1]]
+    c_stt, c_ten = next(j for j, c in enumerate(H) if c == "STT"), next(j for j, c in enumerate(H) if c.startswith("NOI DUNG"))
+    c_dvt, c_dg = next(j for j, c in enumerate(H) if c == "DVT"), next(j for j, c in enumerate(H) if c.startswith("DON GIA"))
+    kt = [j for j, c in enumerate(S) if c.startswith("LUY KE DEN HET KY TRUOC")]; kn = [j for j, c in enumerate(S) if c == "DOT NAY"]
+    lk = [j for j, c in enumerate(S) if c.startswith("LUY KE DEN HET DOT NAY")]
+    if len(kt) < 2 or len(kn) < 2 or len(lk) < 2: raise ValueError(f"{sn}: không nhận ra cột kỳ trước / đợt này / lũy kế của bảng vật tư CĐT cấp")
+    out = dict(sheet=sn, items=[], tong=None)
+    for i, r in enumerate(rows[h + 2:], h + 3):
+        if na(r[c_ten]).startswith("TONG CONG TRUOC THUE"): out["tong"] = (num(r[kt[1]]), num(r[kn[1]]), num(r[lk[1]])); continue
+        if re.fullmatch(r"\d+", na(r[c_stt]).replace(".0", "")) and r[c_ten]:
+            x = dict(dong=i, stt=na(r[c_stt]).replace(".0", ""), ten=str(r[c_ten]).strip(), dvt=str(r[c_dvt] or "").strip(), dg=num(r[c_dg]),
+                     kl_kt=num(r[kt[0]]), kl_kn=num(r[kn[0]]), tt_kt=num(r[kt[1]]), tt_kn=num(r[kn[1]]), tt_lk=num(r[lk[1]]))
+            x["kl_lk"] = x["kl_kt"] + x["kl_kn"] if r[lk[0]] is None else num(r[lk[0]]); out["items"].append(x)
+    return out
+
+def _doc_phat(wb):
+    """Sheet 'TH PHẠT': dòng TỔNG CỘNG GIÁ TRỊ PHẠT ⇒ (lũy kế đợt trước, đợt hiện tại, lũy kế). Phạt KHÔNG cấn trừ trên phiếu — chuyển thẳng."""
+    sn = next((s for s in wb.sheetnames if "PHAT" in na(s).split() or na(s).endswith("PHAT")), None)
+    if not sn: return None
+    rows = [list(r) for r in wb[sn].iter_rows(min_row=1, max_row=80, max_col=12, values_only=True)]
+    h = next((i for i, r in enumerate(rows) if any(na(c) == "DOT HIEN TAI" for c in r)), None)
+    if h is None: return None
+    S = [na(c) for c in rows[h]]; c_kt = next(j for j, c in enumerate(S) if c.startswith("LUY KE DOT TRUOC")); c_kn = S.index("DOT HIEN TAI"); c_lk = S.index("LUY KE")
+    for i, r in enumerate(rows[h + 1:], h + 2):
+        if any(na(c).startswith("TONG CONG GIA TRI PHAT") for c in r): return dict(sheet=sn, dong=i, tong=(num(r[c_kt]), num(r[c_kn]), num(r[c_lk])))
+    return None
 
 def la_claim_cdt(wb): return any("BANG GIA TRI KL" in na(s) for s in wb.sheetnames)
 
@@ -49,6 +88,7 @@ def doc_claim(path, wb):
         if mm: ngay = dt.date(int(mm.group(2)), int(mm.group(1)), 25)
     kq["cover"] = dict(ten_don_vi="CĐT — hồ sơ thanh toán gửi CĐT", so_hd=so_hd, dot=dot, ngay=ngay, o={"so_hd": f"{sn}!đầu trang", "dot": f"{sn}!đầu trang"})
     kq["tien"] = tien; kq["du_an_text"] = txt
+    kq["vat_tu"] = _doc_vat_tu(wb); kq["phat"] = _doc_phat(wb)                 # 2 khoản CĐT tự cắt tiền, KHÔNG nằm trên phiếu ĐNTT
     return kq
 
 def doc_ben_cdt(wb, nhom_ns):
@@ -132,7 +172,44 @@ def kiem_cdt(hs, k, van_tay_da_co=()):
         tinh = th * ptt - tien.get("thu_hoi", 0) - tien.get("khau_tru", 0)
         if abs(tien["de_nghi"] - tinh) > NGUONG: add("CHAN", "Số học", "PHIẾU ĐNTT", round(tien["de_nghi"]), round(tinh), "Đề nghị TT ≠ có VAT × %TT − thu hồi − khấu trừ")
     if tien.get("khau_tru") and MA_KT not in k["hd"]: add("LUU_Y", "Hồ sơ", "PHIẾU ĐNTT", round(tien["khau_tru"]), "—", f"Khung chưa có HĐ khấu trừ {MA_KT} — bấm Đồng ý thì app TỰ TẠO rồi ghi khấu trừ bên CHI (÷ 1+VAT)")
+    vt_ = hs.get("vat_tu")                                             # VẬT TƯ CĐT CẤP ⇒ CHI (HD-CDT-VT) · kỳ trước từng loại = lũy kế đã ghi sổ
+    if vt_:
+        sv, its, tg = vt_["sheet"], vt_["items"], vt_["tong"]; tom["vat_tu_cdt"] = tg[1] if tg else None
+        if tg and abs(sum(x["tt_kn"] for x in its) - tg[1]) > NGUONG: add("CHAN", "Số học", sv, round(sum(x["tt_kn"] for x in its)), round(tg[1]), "Σ vật tư CĐT cấp đợt này ≠ TỔNG CỘNG TRƯỚC THUẾ")
+        for x in its:
+            if abs(x["kl_kn"] * x["dg"] - x["tt_kn"]) > NGUONG: add("CHAN", "Số học", f"{sv}!dòng {x['dong']}", round(x["tt_kn"]), round(x["kl_kn"] * x["dg"]), f"Vật tư CĐT cấp: tiền ≠ KL × ĐG: {x['ten'][:40]}")
+            if MA_VT in k["hd"] and abs(x["kl_kt"] - k["lk_kl"].get((MA_VT, x["stt"]), 0.0)) > 1e-6:
+                add("LUU_Y", "Đợt trước", f"{sv}!dòng {x['dong']}", round(x["kl_kt"], 4), round(k["lk_kl"].get((MA_VT, x["stt"]), 0.0), 4), f"Vật tư CĐT cấp: KL kỳ trước ≠ lũy kế đã ghi sổ: {x['ten'][:40]}")
+            if abs(x["kl_kn"]) > 1e-9 and not nhom_vt(x["ten"]): add("LUU_Y", "Theo HĐ", f"{sv}!dòng {x['dong']}", x["ten"][:30], "—", "Vật tư CĐT cấp chưa có nhóm / mã NS (chỉ tự nhận gạch, xi măng) — sẽ ghi 'CHƯA GÁN NHÓM'")
+        if tg and abs(tg[1]) > NGUONG and MA_VT not in k["hd"]:
+            add("LUU_Y", "Hồ sơ", sv, round(tg[1]), "—", f"Khung chưa có HĐ vật tư CĐT cấp {MA_VT} — bấm Đồng ý thì app TỰ TẠO rồi ghi CHI {tg[1]:,.0f} trước VAT (CĐT tự cắt tiền)")
+    ph_ = hs.get("phat")
+    if ph_ and abs(ph_["tong"][1]) > NGUONG:
+        tom["phat_cdt"] = ph_["tong"][1]
+        if MA_PHAT not in k["hd"]:
+            add("LUU_Y", "Hồ sơ", f"{ph_['sheet']}!dòng {ph_['dong']}", round(ph_["tong"][1]), "—", f"Khung chưa có HĐ phạt CĐT {MA_PHAT} — bấm Đồng ý thì app TỰ TẠO (VAT 0%) rồi ghi CHI {ph_['tong'][1]:,.0f}")
+    if ph_ and MA_PHAT in k["hd"] and abs(ph_["tong"][0] - k["lk_tien"][MA_PHAT]) > NGUONG:     # kỳ trước phạt = lũy kế phạt đã ghi sổ
+        add("LUU_Y", "Đợt trước", f"{ph_['sheet']}!dòng {ph_['dong']}", round(ph_["tong"][0]), round(k["lk_tien"][MA_PHAT]), "Phạt CĐT: lũy kế đợt trước ≠ lũy kế phạt đã ghi sổ")
     return dict(phan_loai=pl, co=_dang(co), tom_tat=tom, khop=khop)
+
+def phan_phat(hs, k):
+    """Phần ghi sổ PHẠT CĐT: 1 dòng N9 THUC_HIEN (dòng HĐ 1) = phạt đợt này, VAT 0% ⇒ chi phí = tiền chi. None nếu không có."""
+    ph_, cv = hs.get("phat"), hs["cover"]
+    if not ph_ or MA_PHAT not in k["hd"] or abs(ph_["tong"][1]) <= NGUONG: return None
+    return dict(tt="N9_TT_DoiTac", ct="N7_HD_DoiTac_ChiTiet", ma_hd=MA_PHAT, dong_moi=[], lk_hstt=ph_["tong"][2],
+                dong_tt=[dict(loai="THUC_HIEN", stt="1", kl=1, dg=ph_["tong"][1], so_tien=None, ma_hd=MA_PHAT, dot=cv["dot"], ngay=cv["ngay"],
+                              ghi="CĐT phạt — CHI (VAT 0%, chuyển thẳng, không trừ trên phiếu)")])
+
+def phan_vat_tu(hs, k):
+    """Phần ghi sổ VẬT TƯ CĐT CẤP (N7 dòng mới cho loại vật tư chưa có + N9 THUC_HIEN theo KL đợt này × ĐG). None nếu không có."""
+    vt_, cv = hs.get("vat_tu"), hs["cover"]
+    if not vt_ or MA_VT not in k["hd"] or not any(abs(x["kl_kn"]) > 1e-9 for x in vt_["items"]): return None
+    co_ = {str(d["stt"]) for d in k["dong"].get(MA_VT, [])}
+    moi = [dict(stt=x["stt"], noi_dung=x["ten"], dvt=x["dvt"], don_gia=x["dg"], pham_vi="TRONG_HD", nhom=nhom_vt(x["ten"]),
+                nguon=f"webapp · {vt_['sheet']} đợt {cv['dot']}") for x in vt_["items"] if x["stt"] not in co_]
+    return dict(tt="N9_TT_DoiTac", ct="N7_HD_DoiTac_ChiTiet", ma_hd=MA_VT, dong_moi=moi, lk_hstt=vt_["tong"][2] if vt_["tong"] else None,
+                dong_tt=[dict(loai="THUC_HIEN", stt=x["stt"], kl=x["kl_kn"], dg=x["dg"], so_tien=None, ma_hd=MA_VT, dot=cv["dot"], ngay=cv["ngay"],
+                              ghi="CĐT cấp vật tư — CHI (trước VAT, CĐT tự cắt tiền)") for x in vt_["items"] if abs(x["kl_kn"]) > 1e-9])
 
 def ke_hoach_cdt(hs, kq, k):
     b = k["cdt"]; ma = kq["phan_loai"]["ma_hd"]; cv = hs["cover"]; tt, gop = [], {}
@@ -154,6 +231,8 @@ def ke_hoach_cdt(hs, kq, k):
         phan.append(dict(tt="N9_TT_DoiTac", ct="N7_HD_DoiTac_ChiTiet", ma_hd=MA_KT, dong_moi=[], lk_hstt=None,
                          dong_tt=[dict(loai="THUC_HIEN", stt="1", kl=1, dg=round(tien["khau_tru"] / (1 + vat_kt), 2), so_tien=None, ma_hd=MA_KT,
                                        dot=cv["dot"], ngay=cv["ngay"], ghi="CĐT khấu trừ — CHI (trước VAT)")]))
-    return dict(ma_hd=ma, phan=phan, dong_hd_moi=[], dong_tt=tt + (phan[1]["dong_tt"] if len(phan) > 1 else []), lk_hstt=phan[0]["lk_hstt"])
+    for pv in (phan_vat_tu(hs, k), phan_phat(hs, k)):
+        if pv: phan.append(pv)
+    return dict(ma_hd=ma, phan=phan, dong_hd_moi=[], dong_tt=tt + [x for p in phan[1:] for x in p["dong_tt"]], lk_hstt=phan[0]["lk_hstt"])
 
 def _dang(co): return [dict(muc=m, lop=lop, vi_tri=vt, hstt=a, doi_chieu=b_, mo_ta=mt) for m, lop, vt, a, b_, mt in co]
