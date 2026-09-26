@@ -96,6 +96,10 @@ def kiem_cdt(hs, k, van_tay_da_co=()):
     kn = sum(l["tt_kn"] for l in hs["lines"])
     if abs(kn - t[1]) > NGUONG: add("CHAN", "Số học", f"{S} dòng B", round(kn), round(t[1]), "Σ các dòng kỳ này ≠ TỔNG GIÁ TRỊ TRƯỚC THUẾ kỳ này")
     for l in hs["lines"]:
+        for ky in ("kt", "kn", "lk"):                                  # dòng tính theo giá trị (VD 'Chi phí quản lý 2,5%'): KL trống, có tiền ⇒ KL = tiền ÷ ĐG
+            if not l[f"kl_{ky}"] and abs(l[f"tt_{ky}"]) > NGUONG and l["dg"]:
+                l[f"kl_{ky}"] = l[f"tt_{ky}"] / l["dg"]
+                if ky == "kn": add("LUU_Y", "Số học", f"{S}!dòng {l['dong']}", round(l["tt_kn"]), round(l["kl_kn"], 8), f"KL kỳ này suy = tiền ÷ ĐG ({l['kl_kn']:.8f}): {l['ds'][:40]}")
         if abs(l["kl_kn"] * l["dg"] - l["tt_kn"]) > NGUONG: add("CHAN", "Số học", f"{S}!dòng {l['dong']}", round(l["tt_kn"]), round(l["kl_kn"] * l["dg"]), f"Tiền ≠ KL × ĐG: {l['ds'][:40]}")
     vat = hs["vat"] if hs["vat"] is not None else (b["hd"][ma]["vat"] if ma else 0)
     if tien.get("th_vat") is not None and abs(t[1] * (1 + vat) - tien["th_vat"]) > NGUONG + 1:

@@ -28,8 +28,10 @@ def dong_hop_le(bang):
         kl, dg, tt = x.get("kl"), x.get("don_gia"), x.get("thanh_tien"); ghi = ""
         if kl is None and dg is None and tt is not None: kl, dg = 1, tt
         v = kl * dg if isinstance(kl, (int, float)) and isinstance(dg, (int, float)) else None
-        if isinstance(tt, (int, float)) and (v is None or abs(v - tt) > max(1000, abs(tt) * 0.001)):   # KL×ĐG ≠ thành tiền in trên HĐ ⇒ tin THÀNH TIỀN
-            ghi = f"HĐ ghi KL {kl} × ĐG {dg}; thành tiền theo HĐ {tt:,.0f}"; kl, dg = 1, tt
+        if isinstance(tt, (int, float)) and (v is None or abs(v - tt) > max(1000, abs(tt) * 0.001)):   # 1 trong 3 số nghi ngờ ⇒ tin ĐG + THÀNH TIỀN, suy KL
+            if isinstance(dg, (int, float)) and dg: ghi = f"KL suy = thành tiền {tt:,.0f} ÷ ĐG {dg:,.0f} (AI đọc KL {kl})"; kl = tt / dg
+            elif isinstance(kl, (int, float)) and kl: ghi = f"ĐG suy = thành tiền {tt:,.0f} ÷ KL {kl}"; dg = tt / kl
+            else: ghi = f"chỉ có thành tiền {tt:,.0f}"; kl, dg = 1, tt
         out.append(dict(stt=str(x.get("stt") or len(out) + 1), noi_dung=x.get("noi_dung"), dvt=x.get("dvt") or "gói", kl=kl, don_gia=dg, ghi=ghi))
     return out
 
