@@ -280,7 +280,7 @@ def doan_hstt(ten_pdf, ds_hs):
         else:
             if ma == "HD-CDT": rieng = {w for w in re.split(r"[^a-z0-9]+", khong_dau(os.path.splitext(r["ten"])[0]).lower()) if len(w) >= 3 and not w.isdigit()} - CHUNG_PDF
             else: rieng = set(loi_ten(tt.get("don_vi") or "")) - CHUNG_PDF
-            n = len(rieng & w_pdf); trung = n if rieng and n >= max(1, (len(rieng) + 1) // 2) else 0
+            n = len(rieng & w_pdf); trung = n if rieng and n >= len(rieng) - len(rieng) // 3 else 0
         if not trung: continue
         dung_dot = not dot_pdf or str(tt.get("dot")) in dot_pdf
         kq.append(((trung * 2 + 5) if dung_dot else 0, r["id"]))
