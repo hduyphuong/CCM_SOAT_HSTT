@@ -269,14 +269,24 @@ def doc_lai(data, da, i):
 def _chuan(s): return re.sub(r"\s+", " ", re.sub(r"[^0-9a-zà-ỹđ ]", " ", str(s or "").lower())).strip()
 def doan_hstt(ten_pdf, ds_hs):
     """Đoán HSTT Excel khớp với PDF: cùng số đợt trong tên file + nhiều từ tên đơn vị trùng nhất. Trả [(điểm, id)] giảm dần."""
+    # BẮT BUỘC trùng TÊN RIÊNG đơn vị (≥ nửa) — chữ chung ('đợt', 'ứng', 'thanh toán'…) và số đợt KHÔNG đủ để khớp
+    # (sự cố 26/09: PDF 'Nguyễn Đức Thống đợt 2 tạm ứng' bị gợi ý vào 'Hoàn ứng BCH đợt 2'). PDF ghi đợt khác ⇒ liệt kê nhưng KHÔNG chọn sẵn.
     t = _chuan(os.path.splitext(ten_pdf)[0]); dot_pdf = re.findall(r"(?:đợt|dot|đ)\s*0?(\d{1,2})", t)
+    kd = khong_dau(t).lower(); w_pdf = set(re.split(r"[^a-z0-9]+", kd))
     kq = []
     for r in ds_hs:
-        tt = r.get("tom_tat") or {}; ten_x = _chuan(os.path.splitext(r["ten"])[0]) + " " + _chuan(tt.get("don_vi"))
-        diem = len(set(w for w in t.split() if len(w) > 2) & set(ten_x.split()))
-        if dot_pdf and str(tt.get("dot")) in dot_pdf: diem += 5
-        if diem: kq.append((diem, r["id"]))
+        tt = r.get("tom_tat") or {}; ma = (r.get("phan_loai") or {}).get("ma_hd") or ""
+        if ma == "HD-BCH": trung = 1 if ("hoan ung" in kd or "bch" in w_pdf) else 0
+        else:
+            if ma == "HD-CDT": rieng = {w for w in re.split(r"[^a-z0-9]+", khong_dau(os.path.splitext(r["ten"])[0]).lower()) if len(w) >= 3 and not w.isdigit()} - CHUNG_PDF
+            else: rieng = set(loi_ten(tt.get("don_vi") or "")) - CHUNG_PDF
+            n = len(rieng & w_pdf); trung = n if rieng and n >= max(1, (len(rieng) + 1) // 2) else 0
+        if not trung: continue
+        dung_dot = not dot_pdf or str(tt.get("dot")) in dot_pdf
+        kq.append(((trung * 2 + 5) if dung_dot else 0, r["id"]))
     return sorted(kq, reverse=True)
+CHUNG_PDF = {"dot", "hstt", "ho", "so", "thanh", "toan", "thanhtoan", "gia", "tri", "giatri", "tam", "ung", "hoan", "ky", "ban", "pdf", "scan",
+             "cdt", "gui", "vela", "hang", "hai", "doi", "thi", "cong", "nha", "cung", "cap", "de", "nghi", "bang", "khoi", "luong", "value"}
 
 def dinh_kem(data, da, rec, ten, raw):
     """Gắn PDF vào hồ sơ HSTT Excel. Đã ghi sổ ⇒ chép luôn vào folder đợt; chưa ⇒ giữ ở _HE_THONG/nap, sẽ xếp khi ghi sổ."""
