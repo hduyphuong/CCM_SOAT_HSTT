@@ -70,6 +70,10 @@ def doc_file(path):
     c_dv = next(j for j, c in enumerate(H) if c == "DVT" or c.startswith("DON VI"))
     kt = [j for j, c in enumerate(S) if c in ("KI TRUOC", "KY TRUOC")]; kn = [j for j, c in enumerate(S) if c in ("KI NAY", "KY NAY")]
     lk = [j for j, c in enumerate(S) if c == "LUY KE"]
+    if not (kt and kn and lk):                                 # mẫu khác (VD HSTT CÔNG NHẬT: bảng KL theo ngày + bảng chấm công) ⇒ báo rõ, không lỗi kỹ thuật
+        cn = any("CHAM CONG" in na(x) for x in (wb.sheetnames if False else [])) or any("NGAY" == c for c in H)
+        raise ValueError(("Mẫu HSTT CÔNG NHẬT (bảng KL ghi theo ngày, có bảng chấm công) — " if cn else "Mẫu HSTT chưa hỗ trợ — ")
+                         + f"sheet '{sn}' không có cột KỲ TRƯỚC / KỲ NÀY / LŨY KẾ nên app chưa đọc được. Hồ sơ CHƯA vào sổ nạp (không soát, không ghi sổ); báo em để thêm bộ đọc mẫu này.")
     c_klhd = col("KL (HD)", H); c_klhd = kt[0] - 1 if c_klhd is None else c_klhd
     kq = dict(file=path, sheet=sn, cover=cv, lines=[], tong=None, vat=None, tu=0.0, hu=0.0, tu_k=0.0, hu_k=0.0, gl=None)
     khung, ngoai = "", False
