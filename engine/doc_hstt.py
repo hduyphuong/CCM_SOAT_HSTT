@@ -65,6 +65,8 @@ def doc_file(path):
     h = next(i for i, r in enumerate(rows) if any(na(c) == "DIEN GIAI" for c in r))
     txt += [na(c) for r in rows[:min(h, 6)] for c in r if c and any(k in na(c) for k in ("DU AN", "CONG TRINH"))]
     H, S = [na(c) for c in rows[h]], [na(c) for c in rows[h + 1]]
+    if "CONG TAC" in H and any(c.startswith("NGAY") for c in H):      # mẫu HSTT CÔNG NHẬT ⇒ bộ đọc riêng
+        return doc_cong_nhat(path, sn, rows, h, H, cv, txt)
     col = lambda lab, arr: next((j for j, c in enumerate(arr) if c.startswith(lab)), None)
     c_stt, c_ds, c_dg = col("STT", H), col("DIEN GIAI", H), col("DON GIA", H)
     c_dv = next(j for j, c in enumerate(H) if c == "DVT" or c.startswith("DON VI"))
@@ -99,3 +101,50 @@ def doc_file(path):
                 tt_kt=num(r[kt[1]]), tt_kn=num(r[kn[1]]), tt_lk=num(r[lk[1]]), ngoai=ngoai))
     kq["du_tru"] = round(kq["tu"] + kq["hu"]); kq["du_an_text"] = " ".join(txt)
     return kq
+
+
+def doc_cong_nhat(path, sn, rows, h, H, cv, txt):
+    """HSTT CÔNG NHẬT: bảng KL ghi theo NGÀY (chức danh · ngày · công tác · ĐVT · KL · ĐG · thành tiền · %TT) + bảng chấm công.
+    Gom theo CHỨC DANH + ĐƠN GIÁ thành dòng HSTT. Nhóm 'Đợt N' = đợt hiện tại ⇒ KỲ NÀY, nhóm đợt trước ⇒ KỲ TRƯỚC; không có nhóm ⇒ tất cả kỳ này.
+    Lũy kế đối chiếu với 'Giá trị thực hiện lũy kế' trên COVER (lk_cover)."""
+    col = lambda lab: next((j for j, c in enumerate(H) if c.startswith(lab)), None)
+    c_stt, c_ds, c_ng, c_dv, c_kl, c_dg, c_tt = col("STT"), col("DIEN GIAI"), col("NGAY"), col("DVT"), col("KL"), col("DON GIA"), col("THANH TIEN")
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True); lk_cover = None; dot_data = ngay_data = so_hd_data = ten_data = None
+    if "DATA" in wb.sheetnames:                                     # sheet DATA: thông tin đợt / HĐ / nhà thầu
+        for r in wb["DATA"].iter_rows(min_row=1, max_row=40, max_col=4, values_only=True):
+            t = na(r[0])
+            if t.startswith("DOT THANH TOAN SO"):
+                try: dot_data = int(str(r[1]).strip())
+                except (TypeError, ValueError): pass
+            elif t.startswith("DEN NGAY"): ngay_data = _ngay(r[1])
+            elif t.startswith("SO HOP DONG") and r[1]: so_hd_data = str(r[1]).strip()
+    sc = next((x for x in wb.sheetnames if "COVER" in na(x)), None)
+    if sc:
+        for r in wb[sc].iter_rows(min_row=1, max_row=40, max_col=8, values_only=True):
+            if na(r[0]).startswith("GIA TRI THUC HIEN LUY KE"): lk_cover = next((num(x) for x in r[1:] if isinstance(x, (int, float))), None)
+    wb.close()
+    dot = cv.get("dot") or dot_data
+    if not cv.get("so_hd") and so_hd_data: cv["so_hd"] = so_hd_data
+    if not cv.get("dot") and dot_data: cv["dot"] = dot_data
+    if not cv.get("ngay") and ngay_data: cv["ngay"] = ngay_data
+    gom, thu_tu, nhom_dot, ngoai = {}, [], None, False
+    for i, r in enumerate(rows[h + 1:], h + 2):
+        a, ds = na(r[c_stt]), r[c_ds]; dsn = na(ds)
+        if dsn.startswith("DE NGHI THANH TOAN") or a == "(DNTT)": break
+        m = re.match(r"DOT\s*(\d+)", dsn)
+        if a and not isinstance(r[c_dg], (int, float)) and m: nhom_dot = int(m.group(1)); continue          # nhóm 'Đợt N từ ngày…'
+        if a and dsn and not isinstance(r[c_dg], (int, float)):
+            if any(k in dsn for k in ("NGOAI HOP DONG", "PHAT SINH", "PHU LUC")): ngoai = True
+            continue
+        if not (ds and isinstance(r[c_dg], (int, float)) and r[c_dg] > 0 and isinstance(r[c_ng], (dt.date, dt.datetime))): continue
+        kl, tt = num(r[c_kl]), num(r[c_tt]) if c_tt is not None else num(r[c_kl]) * num(r[c_dg])
+        k = (na(ds), round(num(r[c_dg]), 2), ngoai)
+        if k not in gom:
+            gom[k] = dict(dong=i, khung="Công nhật", stt=str(len(gom) + 1), ds=str(ds).strip(), dvt=str(r[c_dv] or "công").strip(), kl_hd=None, dg=num(r[c_dg]),
+                          kl_kt=0.0, kl_kn=0.0, kl_lk=0.0, tt_kt=0.0, tt_kn=0.0, tt_lk=0.0, ngoai=ngoai); thu_tu.append(k)
+        g = gom[k]; ky = "kn" if (nhom_dot is None or dot is None or nhom_dot == dot) else "kt"
+        g[f"kl_{ky}"] += kl; g[f"tt_{ky}"] += tt; g["kl_lk"] += kl; g["tt_lk"] += tt
+    lines = [gom[k] for k in thu_tu]
+    tong = (sum(l["tt_kt"] for l in lines), sum(l["tt_kn"] for l in lines), sum(l["tt_lk"] for l in lines))
+    return dict(file=path, sheet=sn, cover=cv, lines=lines, tong=tong, vat=None, tu=0.0, hu=0.0, tu_k=0.0, hu_k=0.0, gl=None, du_tru=0,
+                du_an_text=" ".join(txt), mau="CONG_NHAT", lk_cover=lk_cover)

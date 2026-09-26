@@ -70,6 +70,9 @@ def xu_ly_nap(b):
     else: os.replace(tam, dich); os.chmod(dich, 0o444)
     hs = D.doc_file(dich); hs["van_tay"] = vt
     k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", []); kq = K.kiem(hs, k, cu)
+    if hs.get("mau") == "CONG_NHAT" and hs.get("lk_cover") is not None and abs(hs["tong"][2] - hs["lk_cover"]) > 1:   # công nhật: Σ ngày công = LK trên COVER
+        kq["co"].insert(0, dict(muc="CHAN", lop="Số học", vi_tri="COVER", hstt=hs["tong"][2], doi_chieu=hs["lk_cover"],
+                                mo_ta=f"Σ ngày công {hs['tong'][2]:,.0f} ≠ giá trị thực hiện lũy kế trên COVER {hs['lk_cover']:,.0f} — bảng KL thiếu/thừa dòng"))
     for da2 in du_an():                                            # HĐ nguyên tắc NCC dùng chung nhiều dự án ⇒ cùng 1 file không được nạp ở 2 dự án
         if da2 == da: continue
         r2 = next((v for v in so_nap(da2).values() if v["van_tay"] == vt and v["trang_thai"] != "TRA_DOI"), None)
