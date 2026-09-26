@@ -1,6 +1,6 @@
 """Đọc 1 file HSTT (đội / NTP / NCC) — tự dò cột theo tiêu đề, chạy được các dạng đã gặp:
 05.Giá trị (mới + cũ có mã CV) · BẢNG KL (Tình, NCC chia khung giá / đợt giao). Không ghi gì, chỉ đọc."""
-import openpyxl, re, unicodedata, datetime as dt, hashlib, warnings
+import openpyxl, re, os, unicodedata, datetime as dt, hashlib, warnings
 warnings.filterwarnings("ignore")
 
 def na(s):
@@ -56,6 +56,8 @@ def doc_file(path):
         kq = cdt.doc_claim(path, wb); wb.close(); return kq
     cv = doc_cover(wb)
     sn = next((s for s in wb.sheetnames if na(s) in ("05.GIA TRI", "BANG KL") or re.fullmatch(r"\d+\.BANG KL", na(s))), None)
+    if not sn and la_hoan_ung(wb):                             # hồ sơ HOÀN ỨNG quỹ BCH (tờ trình + bảng kê + phiếu tạm ứng + giấy thanh toán tạm ứng)
+        kq = doc_hoan_ung(path, wb); wb.close(); return kq
     if not sn: wb.close(); raise ValueError("Không thấy sheet bảng giá trị / bảng KL (05.Giá trị hoặc 5.BẢNG KL)")
     rows = [list(r) for r in wb[sn].iter_rows(min_row=1, max_row=200, max_col=30, values_only=True)]
     txt = []
@@ -148,3 +150,86 @@ def doc_cong_nhat(path, sn, rows, h, H, cv, txt):
     tong = (sum(l["tt_kt"] for l in lines), sum(l["tt_kn"] for l in lines), sum(l["tt_lk"] for l in lines))
     return dict(file=path, sheet=sn, cover=cv, lines=lines, tong=tong, vat=None, tu=0.0, hu=0.0, tu_k=0.0, hu_k=0.0, gl=None, du_tru=0,
                 du_an_text=" ".join(txt), mau="CONG_NHAT", lk_cover=lk_cover)
+
+
+LA_MA = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10}
+def la_hoan_ung(wb):
+    t = [na(s) for s in wb.sheetnames]
+    return any("BANG KE" in s for s in t) and any("TO TRINH" in s or "H.U" in s or "PHIEU T.U" in s for s in t)
+
+def _so(v):
+    if isinstance(v, (int, float)): return float(v)
+    s = re.sub(r"[^\d]", "", str(v or "")); return float(s) if s else None
+
+def doc_hoan_ung(path, wb):
+    """HOÀN ỨNG QUỸ BCH: 'Bảng kê' chia A (có hoá đơn) / B (không hoá đơn) × nhóm chi phí La Mã (I…V) × dòng chi tiết (ĐVT·KL·ĐG·thành tiền·ngày).
+    Mỗi NHÓM CHI PHÍ = 1 dòng HSTT (gộp A+B), tính theo tiền (ĐVT 'đ', ĐG 1). File chỉ có ĐỢT NÀY ⇒ kỳ trước lấy từ khung lúc kiểm.
+    Tự kiểm: KL×ĐG từng dòng · Σ chi tiết = dòng nhóm · Σ nhóm = dòng phần A/B · tổng = Tờ trình (từng nhóm) = Phiếu tạm ứng = Giấy thanh toán tạm ứng."""
+    kr = []; add = lambda *x: kr.append(x)
+    sk = next(s for s in wb.sheetnames if "BANG KE" in na(s))
+    rows = [list(r) + [None] * 12 for r in wb[sk].iter_rows(min_row=1, max_row=3000, max_col=12, values_only=True)]
+    h = next(i for i, r in enumerate(rows) if any(na(c) == "DIEN GIAI" for c in r))
+    H = [na(c) for c in rows[h]]; col = lambda lab: next(j for j, c in enumerate(H) if c.startswith(lab))
+    cS, cD, cK, cG, cT = col("STT"), col("DIEN GIAI"), col("KHOI LUONG"), col("DON GIA"), col("THANH TIEN")
+    dau = " ".join(na(c) for r in rows[:h] for c in r if c)
+    phan = nhom = None; gom, ten_nhom, dong_nhom, t_phan, t_nhom, ct = {}, {}, {}, {}, {}, {}
+    for i, r in enumerate(rows[h + 1:], h + 2):
+        s = na(r[cS]).strip(); ds = str(r[cD] or "").strip(); g = r[cT]
+        if s in ("A", "B") and ds: phan = s; t_phan[s] = (i, _so(g) or 0.0); continue
+        if s in LA_MA and ds and phan:
+            nhom = LA_MA[s]; t_nhom[(phan, nhom)] = (i, _so(g) or 0.0); ten_nhom.setdefault(nhom, ds); dong_nhom.setdefault(nhom, i); gom.setdefault(nhom, 0.0); continue
+        if re.fullmatch(r"[IVX]+\.\d+", s): continue                          # nhóm con (II.1 THIẾT BỊ …) — chỉ là dòng cộng
+        if not (phan and nhom and re.fullmatch(r"\d+", s) and isinstance(g, (int, float)) and g): continue
+        e, f = r[cK], r[cG]
+        if isinstance(e, (int, float)) and isinstance(f, (int, float)) and abs(e * f - g) > 1:
+            add("CHAN", "Số học", f"{sk}!dòng {i}", round(g), round(e * f), f"Thành tiền ≠ KL × ĐG: {ds[:40]}")
+        gom[nhom] += g; ct[(phan, nhom)] = ct.get((phan, nhom), 0.0) + g
+    for (p, n_), (i, v) in t_nhom.items():
+        if abs(ct.get((p, n_), 0.0) - v) > 1: add("CHAN", "Số học", f"{sk}!dòng {i}", round(ct.get((p, n_), 0.0)), round(v), f"Σ chi tiết ≠ dòng nhóm {ten_nhom[n_][:35]} (phần {p})")
+    for p, (i, v) in t_phan.items():
+        sv = sum(v_ for (p_, _n), (_i, v_) in t_nhom.items() if p_ == p)
+        if abs(sv - v) > 1: add("CHAN", "Số học", f"{sk}!dòng {i}", round(sv), round(v), f"Σ các nhóm ≠ dòng tổng phần {p}")
+    tong = sum(gom.values())
+    # Tờ trình: bảng I (từng nhóm: có HĐ + không HĐ = tổng) · tên dự án
+    st = next((s for s in wb.sheetnames if "TO TRINH" in na(s)), None); txt = [dau]; so_tt = None
+    if st:
+        tr = [list(r) + [None] * 8 for r in wb[st].iter_rows(min_row=1, max_row=120, max_col=8, values_only=True)]
+        so_tt = next((str(r[0]).split(":", 1)[1].strip() for r in tr if na(r[0]).startswith("SO:")), None)
+        ct_da = re.search(r"CONG TRINH:\s*(.+?)(KY THU|$)", dau)
+        for i, r in enumerate(tr, 1):
+            a = na(r[0])
+            if a.startswith("TONG GIA TRI") and isinstance(r[5], (int, float)):
+                if abs(r[5] - tong) > 1: add("CHAN", "Số học", f"{st}!dòng {i}", round(r[5]), round(tong), "Tổng Tờ trình ≠ Σ Bảng kê")
+                break
+            n_ = next((n for n, t in ten_nhom.items() if na(t) == na(r[2])), None)
+            if n_ and isinstance(r[5], (int, float)) and abs(r[5] - gom[n_]) > 1:
+                add("CHAN", "Số học", f"{st}!dòng {i}", round(r[5]), round(gom[n_]), f"Tờ trình nhóm {ten_nhom[n_][:35]} ≠ Bảng kê")
+        for i, r in enumerate(tr, 1):
+            a = na(r[0]); txt.append(a)
+            if a.startswith("BCH DU AN") and ct_da and not all(w in a for w in ct_da.group(1).split()[:3]):
+                add("LUU_Y", "Hồ sơ", f"{st}!dòng {i}", str(r[0])[:45], ct_da.group(1).strip()[:30], "Tờ trình ghi tên dự án KHÁC (sót từ mẫu cũ?) — anh soát lại trước khi trình ký")
+    # Phiếu đề nghị tạm ứng · Giấy thanh toán tạm ứng
+    ngay = None; chua_hu = None
+    for s in wb.sheetnames:
+        if "PHIEU T.U" in na(s) or "H.U" in na(s):
+            for i, r in enumerate(wb[s].iter_rows(min_row=1, max_row=60, max_col=9, values_only=True), 1):
+                a = na(r[0]); v = next((_so(c) for c in r[1:] if _so(c)), None) if r else None
+                m = re.search(r"NGAY:\s*(\d{1,2})\s*/\s*(\d{1,2})\s*/\s*(\d{4})", a)
+                if m and ngay is None:
+                    try: ngay = dt.date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+                    except ValueError: pass
+                if (a.startswith("SO TIEN DE NGHI") or "SO TIEN DA CHI" in a) and v is not None and abs(v - tong) > 1:
+                    add("CHAN", "Số học", f"{s}!dòng {i}", round(v), round(tong), f"{str(r[0]).strip()[:35]} ≠ Σ Bảng kê")
+                if "SO TIEN CHUA HOAN UNG" in a: chua_hu = v
+    if chua_hu: add("LUU_Y", "Hồ sơ", "Giấy thanh toán tạm ứng", round(chua_hu), "—", "Còn tạm ứng CHƯA hoàn từ đợt trước — kiểm chênh lệch trước khi chi")
+    if ngay is None:
+        m = re.match(r"(\d{2})(\d{2})(\d{2})", os.path.basename(path).split("_", 1)[-1])
+        try: ngay = dt.date(2000 + int(m.group(3)), int(m.group(2)), int(m.group(1))) if m else None
+        except ValueError: ngay = None
+    md = re.search(r"KY THU\s*(\d+)", dau) or re.search(r"DOT\s*(\d+)", " ".join(txt))
+    cv = dict(ten_don_vi="Ban chỉ huy công trường", so_hd=None, dot=int(md.group(1)) if md else None, ngay=ngay, so_to_trinh=so_tt,
+              o={"dot": f"{sk}!đầu trang", "ten_don_vi": "Tờ trình", "so_hd": "Tờ trình"})
+    lines = [dict(dong=dong_nhom[n], khung="", stt=str(n), ds=ten_nhom[n], dvt="đ", kl_hd=None, dg=1.0, kl_kt=0.0, kl_kn=gom[n], kl_lk=gom[n],
+                  tt_kt=0.0, tt_kn=gom[n], tt_lk=gom[n], ngoai=False) for n in sorted(gom)]
+    return dict(file=path, sheet=sk, cover=cv, lines=lines, tong=(0.0, tong, tong), vat=0, tu=0.0, hu=0.0, tu_k=0.0, hu_k=0.0, gl=None, du_tru=0,
+                du_an_text=" ".join(txt), mau="HOAN_UNG_BCH", kiem_rieng=kr)

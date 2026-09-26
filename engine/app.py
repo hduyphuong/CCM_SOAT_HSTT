@@ -193,6 +193,7 @@ def xu_ly_hd_tam(b):
         ten = _re.sub(r"\s{2,}", " ", _re.sub(r"\([^)]*\)", " ", str(cv.get("ten_don_vi") or ""))).strip(" -–,;")
         if not ten: raise ValueError("HSTT không ghi tên đơn vị — không tạo được HĐ tạm")
         dm = NEN.danh_muc(cfg["khung"]); d = NEN.khop_doi_tac(ten, dm["doi_tac"]); ma = d["ma"] if d else NEN.ma_de_xuat(ten)
+        if hs.get("mau") == "HOAN_UNG_BCH": ma, loai_dt, ly_do = (d["ma"] if d else "BCH"), "DVK", LY_DO_TAM["HOAN_UNG_BCH"]   # quỹ BCH: 1 đối tác nội bộ cố định
         if any(h["ma_hd"] == f"HD-{ma}" for h in dm["hop_dong"]): raise ValueError(f"HD-{ma} đã có trong khung — không cần HĐ tạm")
         hom_nay = dt.date.today().strftime("%d/%m/%Y"); ngay = cv.get("ngay")
         a = dict(loai="HD_DOI_TAC", so_hd=cv.get("so_hd") or f"HĐ TẠM {ma}", ngay_ky=str(ngay)[:10] if ngay else dt.date.today().isoformat(), doi_tac_ten=ten,

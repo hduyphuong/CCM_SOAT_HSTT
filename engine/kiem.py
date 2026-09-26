@@ -85,7 +85,7 @@ def phan_loai(hs, k):
     if theo_so and theo_ten and theo_so != theo_ten:
         co.append(("CHAN", "Hồ sơ", cv["o"].get("so_hd", "COVER"), cv["so_hd"], k["hd"][theo_ten]["so_hd"],
                    f"Số HĐ trên COVER là HĐ của đơn vị khác ({theo_so}) — tên đơn vị khớp {theo_ten}"))
-    elif theo_ten and not theo_so:
+    elif theo_ten and not theo_so and hs.get("mau") != "HOAN_UNG_BCH":          # hoàn ứng BCH không có số HĐ
         co.append(("LUU_Y", "Hồ sơ", cv["o"].get("so_hd", "COVER"), cv["so_hd"], k["hd"][theo_ten]["so_hd"], "Số HĐ trên COVER không khớp số HĐ trong khung"))
     if not ma_hd:
         co.append(("CHAN", "Hồ sơ", cv["o"].get("ten_don_vi", "COVER"), cv["ten_don_vi"], "—", "Đơn vị CHƯA có hợp đồng trong khung — không ghi sổ (quy tắc: chưa có HĐ thì không nạp)"))
@@ -122,6 +122,7 @@ def _kiem(hs, k, van_tay_da_co=()):
     if hs.get("loai") == "CDT":
         import cdt; return cdt.kiem_cdt(hs, k, van_tay_da_co)
     pl, co = phan_loai(hs, k)
+    co += list(hs.get("kiem_rieng") or [])                            # cờ tự kiểm của bộ đọc mẫu riêng (hoàn ứng BCH…)
     S = hs["sheet"]; cv = hs["cover"]; t = hs["tong"] or (0, 0, 0)
     add = lambda muc, lop, vt, a, b, mt: co.append((muc, lop, vt, a, b, mt))
     if hs.get("van_tay") in van_tay_da_co: add("CHAN", "Hồ sơ", "file", hs["van_tay"][:12], "đã nạp", "File trùng nội dung với hồ sơ đã nạp trước (dù tên file khác)")
@@ -138,6 +139,11 @@ def _kiem(hs, k, van_tay_da_co=()):
                                 ngay=cv["ngay"].isoformat() if cv["ngay"] else None, vat=hs["vat"], du_tru_tam_ung=hs["du_tru"])
     if not ma: return dict(phan_loai=pl, co=_dang(co), tom_tat=tom, khop=[])
     h = k["hd"][ma]; ds_dong = k["dong"].get(ma, [])
+    if hs.get("mau") == "HOAN_UNG_BCH":           # hoàn ứng chỉ ghi ĐỢT NÀY ⇒ kỳ trước = lũy kế đã ghi sổ (không để trống ⇒ tránh ĐIỀU CHỈNH âm giả)
+        for l in hs["lines"]:
+            d = khop_dong(l, ds_dong); lk0 = k["lk_kl"].get((ma, d["stt"]), 0.0) if d else 0.0
+            l["kl_kt"] = l["tt_kt"] = lk0; l["kl_lk"] = l["tt_lk"] = lk0 + l["kl_kn"]
+        t = (sum(l["tt_kt"] for l in hs["lines"]), t[1], sum(l["tt_lk"] for l in hs["lines"])); hs["tong"] = t; tom.update(ky_truoc=t[0], luy_ke=t[2])
     # lớp 1 — đợt
     dc = k["dot_cuoi"].get(ma, 0)
     dtu = k["dot_cuoi_tu"].get(ma, 0)
