@@ -118,6 +118,12 @@ def xu_ly_duyet(b):
     else:
         rec["trang_thai"] = hd; rec["ly_do"] = b.get("ly_do") or ""
     rec["luc_duyet"] = dt.datetime.now().isoformat(timespec="seconds"); s[i] = rec; luu_so(da, s)
+    if rec["trang_thai"] == "DA_GHI_SO":       # lũy kế trong khung vừa đổi ⇒ SOÁT LẠI các HSTT đang chờ duyệt cùng HĐ (kỳ trước đợt sau phải = lũy kế đợt vừa ghi)
+        ma = (rec.get("phan_loai") or {}).get("ma_hd")
+        for k_, v in list(s.items()):
+            if k_ != i and v["trang_thai"] == "CHO_DUYET" and (v.get("phan_loai") or {}).get("ma_hd") == ma:
+                try: xu_ly_nap(dict(du_an=da, ten=v["ten"], b64=base64.b64encode(open(tuyet_doi(v["file"]), "rb").read()).decode()))
+                except Exception as e: print("soát lại lỗi", v["ten"], e)
     return dict(ok=rec["trang_thai"] != "CHO_DUYET", ho_so=rec)
 
 def bao_cao(da):

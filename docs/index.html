@@ -378,7 +378,11 @@ function the(r) {
     if (a !== "DONG_Y") { ly_do = prompt(a === "TRA_DOI" ? "Lý do trả đội:" : "Nội dung cần chỉnh sửa:"); if (ly_do === null) return }
     b.disabled = true; b.textContent = "Đang xử lý…";
     try { const kq = await api("/duyet", {du_an: $("#da").value, id: r.id, hanh_dong: a, ly_do});
-          el.replaceWith(the(kq.ho_so || Object.assign(r, {ket_qua: {ok: false, ly_do: kq.ly_do}}))) }
+          el.replaceWith(the(kq.ho_so || Object.assign(r, {ket_qua: {ok: false, ly_do: kq.ly_do}})));
+          if (kq.ho_so && kq.ho_so.trang_thai === "DA_GHI_SO") {           // engine đã soát lại HSTT chờ duyệt cùng HĐ ⇒ làm mới các thẻ đang mở
+            const ds = await api("/ho-so?du_an=" + encodeURIComponent($("#da").value));
+            document.querySelectorAll("#cards .card[data-id]").forEach(c => { const m = ds.find(x => x.id === c.dataset.id); if (m && m.id !== r.id) c.replaceWith(the(m)) });
+          } }
     catch (e) { alert("Lỗi: " + e.message); b.disabled = false }
   });
   return el;
