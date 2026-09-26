@@ -37,7 +37,7 @@ def _ke_hoach_doi_tac(hs, kq, k):
         elif abs(dv) > 1: tt.append(dict(loai="DIEU_CHINH", stt=st, kl=None, dg=None, so_tien=round(dv, 2), ghi="HSTT đổi giá kỳ trước"))
     for l, st in thu_tu:
         if abs(l["kl_kn"]) > 1e-9:
-            tt.append(dict(loai="THUC_HIEN", stt=st, kl=l["kl_kn"], dg=l["dg"], so_tien=None, ghi=""))
+            tt.append(dict(loai="THUC_HIEN", stt=st, kl=l["kl_kn"], dg=l["dg"], so_tien=None, ghi="", **({"vat_rieng": l["vat_rieng"]} if "vat_rieng" in l else {})))
             if abs(l["kl_kn"] * l["dg"] - l["tt_kn"]) > 1: tt.append(dict(loai="DIEU_CHINH", stt=st, kl=None, dg=None, so_tien=round(l["tt_kn"] - l["kl_kn"] * l["dg"], 2), ghi="làm tròn"))
     O = k["tu_treo"][ma]
     if kq["phan_loai"]["loai_hs"] == "TAM_UNG":
@@ -77,6 +77,11 @@ def _ghi_phan(wb, ph, ten_file):
             c = w9.Range(f"{col}{r}")
             if isinstance(v, str) and v.startswith("="): c.Formula = v
             else: c.Value = v
+        if ph["tt"] == "N9_TT_DoiTac":                                # tiền chi: đặt lại công thức CHUẨN (dòng chép có thể mang thuế suất riêng của dòng trên)
+            cn = T.cot(T.TT_COLS)["tien_thanh_toan"]; f = T.tt_cong_thuc(ph["tt"], r, co_noi_dung=True)[cn]
+            if x.get("vat_rieng") is not None:                        # dòng CÓ hoá đơn trong HĐ không-VAT (hoàn ứng BCH): VAT của HĐ ⇒ thuế suất của dòng
+                i = f.index("*(1+") + 4; j = f.index(")*", i); f = f[:i] + f"{x['vat_rieng']:.10f}" + f[j:]
+            w9.Range(f"{cn}{r}").Formula = f
 
 def _lk(app, w9, ma):
     f = app.WorksheetFunction

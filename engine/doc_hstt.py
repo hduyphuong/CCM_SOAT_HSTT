@@ -171,8 +171,10 @@ def doc_hoan_ung(path, wb):
     h = next(i for i, r in enumerate(rows) if any(na(c) == "DIEN GIAI" for c in r))
     H = [na(c) for c in rows[h]]; col = lambda lab: next(j for j, c in enumerate(H) if c.startswith(lab))
     cS, cD, cK, cG, cT = col("STT"), col("DIEN GIAI"), col("KHOI LUONG"), col("DON GIA"), col("THANH TIEN")
+    cC = next((j for j, c in enumerate(H) if c.startswith("GHI CHU")), None)
     dau = " ".join(na(c) for r in rows[:h] for c in r if c)
     phan = nhom = None; gom, ten_nhom, dong_nhom, t_phan, t_nhom, ct = {}, {}, {}, {}, {}, {}
+    net_a, gross_a, gross_b, ts_khac = {}, {}, {}, []                    # A = có hoá đơn ⇒ TÁCH VAT (anh chốt 26/09: chi phí nhập vào khung là TRƯỚC VAT)
     for i, r in enumerate(rows[h + 1:], h + 2):
         s = na(r[cS]).strip(); ds = str(r[cD] or "").strip(); g = r[cT]
         if s in ("A", "B") and ds: phan = s; t_phan[s] = (i, _so(g) or 0.0); continue
@@ -184,6 +186,12 @@ def doc_hoan_ung(path, wb):
         if isinstance(e, (int, float)) and isinstance(f, (int, float)) and abs(e * f - g) > 1:
             add("CHAN", "Số học", f"{sk}!dòng {i}", round(g), round(e * f), f"Thành tiền ≠ KL × ĐG: {ds[:40]}")
         gom[nhom] += g; ct[(phan, nhom)] = ct.get((phan, nhom), 0.0) + g
+        if phan == "A":                                                   # thuế suất: ghi chú dòng ghi 'x%' / 'KCT' ⇒ theo đó, không ghi ⇒ mặc định 8%
+            gc = na(r[cC]) if cC is not None else ""; mv = re.search(r"(\d+(?:[.,]\d+)?)\s*%", gc)
+            ts = 0.0 if "KCT" in gc or "KHONG CHIU THUE" in gc else (float(mv.group(1).replace(",", ".")) / 100 if mv else 0.08)
+            if ts != 0.08: ts_khac.append((i, ts))
+            net_a[nhom] = net_a.get(nhom, 0.0) + g / (1 + ts); gross_a[nhom] = gross_a.get(nhom, 0.0) + g
+        else: gross_b[nhom] = gross_b.get(nhom, 0.0) + g
     for (p, n_), (i, v) in t_nhom.items():
         if abs(ct.get((p, n_), 0.0) - v) > 1: add("CHAN", "Số học", f"{sk}!dòng {i}", round(ct.get((p, n_), 0.0)), round(v), f"Σ chi tiết ≠ dòng nhóm {ten_nhom[n_][:35]} (phần {p})")
     for p, (i, v) in t_phan.items():
@@ -229,7 +237,16 @@ def doc_hoan_ung(path, wb):
     md = re.search(r"KY THU\s*(\d+)", dau) or re.search(r"DOT\s*(\d+)", " ".join(txt))
     cv = dict(ten_don_vi="Ban chỉ huy công trường", so_hd=None, dot=int(md.group(1)) if md else None, ngay=ngay, so_to_trinh=so_tt,
               o={"dot": f"{sk}!đầu trang", "ten_don_vi": "Tờ trình", "so_hd": "Tờ trình"})
-    lines = [dict(dong=dong_nhom[n], khung="", stt=str(n), ds=ten_nhom[n], dvt="đ", kl_hd=None, dg=1.0, kl_kt=0.0, kl_kn=gom[n], kl_lk=gom[n],
-                  tt_kt=0.0, tt_kn=gom[n], tt_lk=gom[n], ngoai=False) for n in sorted(gom)]
-    return dict(file=path, sheet=sk, cover=cv, lines=lines, tong=(0.0, tong, tong), vat=0, tu=0.0, hu=0.0, tu_k=0.0, hu_k=0.0, gl=None, du_tru=0,
+    lines = []                                                            # mỗi nhóm 2 dòng: 'n' không hoá đơn (giữ nguyên) · 'nH' có hoá đơn (TRƯỚC VAT, tiền chi = đã gồm VAT)
+    for n in sorted(gom):
+        b_, a_, g_ = gross_b.get(n, 0.0), net_a.get(n, 0.0), gross_a.get(n, 0.0)
+        lines.append(dict(dong=dong_nhom[n], khung="", stt=str(n), ds=ten_nhom[n], dvt="đ", kl_hd=None, dg=1.0, kl_kt=0.0, kl_kn=b_, kl_lk=b_,
+                          tt_kt=0.0, tt_kn=b_, tt_lk=b_, ngoai=False))
+        lines.append(dict(dong=dong_nhom[n], khung="", stt=f"{n}H", ds=f"{ten_nhom[n]} — có hoá đơn (trước VAT)", dvt="đ", kl_hd=None, dg=1.0,
+                          kl_kt=0.0, kl_kn=a_, kl_lk=a_, tt_kt=0.0, tt_kn=a_, tt_lk=a_, ngoai=False, vat_rieng=(g_ / a_ - 1) if a_ else 0.08))
+    if sum(gross_a.values()) > 1:
+        add("LUU_Y", "Theo HĐ", f"{sk} phần A", round(sum(gross_a.values())), round(sum(net_a.values())),
+            "Chi phí CÓ hoá đơn đã TÁCH VAT (mặc định 8%" + (f"; {len(ts_khac)} dòng theo thuế suất ghi chú" if ts_khac else "") + ") — ghi chi phí trước VAT, tiền chi = đã gồm VAT")
+    tn = sum(l["tt_kn"] for l in lines)
+    return dict(file=path, sheet=sk, cover=cv, lines=lines, tong=(0.0, tn, tn), vat=0, tu=0.0, hu=0.0, tu_k=0.0, hu_k=0.0, gl=None, du_tru=0,
                 du_an_text=" ".join(txt), mau="HOAN_UNG_BCH", kiem_rieng=kr)
