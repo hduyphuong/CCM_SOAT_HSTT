@@ -13,6 +13,10 @@ Nạp HSTT (đội / NTP / NCC) **hoặc hồ sơ thanh toán gửi CĐT (doanh 
 
 Engine chỉ nhận lệnh từ trang ghi trong `<DATA>\_CAU_HINH\trang.txt` (VD `https://ten-tai-khoan.github.io`) và từ `localhost`.
 
+## Chạy engine
+- **Chạy ẩn, tự bật khi đăng nhập Windows** (khuyên dùng): Task Scheduler tác vụ `Engine soat HSTT` → `pythonw engine\chay_an.pyw` (không cửa sổ, log ở `<DATA>\_CAU_HINH\log\engine.log`, đã chạy thì không bật bản thứ 2). Bật tay: `schtasks /run /tn "Engine soat HSTT"` · tắt: `tat_engine.bat`.
+- Chạy có cửa sổ (gỡ lỗi): `chay_engine.bat` — đóng cửa sổ là engine tắt.
+
 ## Vị trí dữ liệu (`<DATA>`)
 Ghi ở **một file trên máy chạy engine**, không lên git: `engine\cau_hinh_may.json`
 ```json

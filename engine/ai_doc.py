@@ -53,7 +53,8 @@ def doc(path, cty="(chưa khai báo)", schema=None, huong_dan=None, timeout=1500
                "--system-prompt", (huong_dan or HUONG_DAN).format(cty=cty), "--setting-sources", "project", "--tools", "Read",
                "--allowedTools", "Read", "--max-turns", "14", "--no-session-persistence"] + (["--model", model] if model else [])
         t0 = time.time()
-        p = subprocess.run(cmd, cwd=d, capture_output=True, text=True, encoding="utf-8", timeout=timeout, shell=(os.name == "nt"))
+        p = subprocess.run(cmd, cwd=d, capture_output=True, text=True, encoding="utf-8", timeout=timeout, shell=(os.name == "nt"),
+                           creationflags=0x08000000 if os.name == "nt" else 0)          # CREATE_NO_WINDOW: engine chạy ẩn thì không bật cửa sổ đen
         try: o = json.loads(p.stdout)
         except Exception: raise RuntimeError("Claude không trả kết quả (chưa đăng nhập Claude Code / hết hạn mức gói?): " + (p.stderr or p.stdout)[-300:])
         if o.get("is_error"): raise RuntimeError("Claude báo lỗi: " + str(o.get("result"))[:300])
