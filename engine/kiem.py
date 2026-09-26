@@ -67,7 +67,9 @@ def doc_khung(path):
     return k
 
 def _chuan_hd(s): return re.sub(r"[^A-Z0-9]", "", na(s).replace("SO ", "", 1) if na(s).startswith("SO ") else na(s))
-def _chuan_ten(s): return set(re.sub(r"[^A-Z0-9 ]", " ", na(s)).split()) - {"CONG", "TY", "TNHH", "CP", "CO", "PHAN", "TO", "DOI", "SX", "TM", "MTV", "DV", "XD"}
+def _chuan_ten(s):
+    """Phần TÊN RIÊNG (bỏ CỤM tiền tố ở đầu: tổ đội / đội thi công / công ty TNHH…). KHÔNG bỏ từ lẻ 'CÔNG' — nó có thể là tên người (Nguyễn Công Danh)."""
+    import nen; return {w.upper() for w in nen.loi_ten(s)}
 
 def phan_loai(hs, k):
     """HSTT → hợp đồng trong khung. Không chắc thì báo, không tự đoán."""
