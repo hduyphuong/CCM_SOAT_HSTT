@@ -260,6 +260,7 @@ def doc_hoan_ung(path, wb):
     md = re.search(r"KY THU\s*(\d+)", dau) or re.search(r"DOT\s*(\d+)", " ".join(txt))
     cv = dict(ten_don_vi="Ban chỉ huy công trường", so_hd=None, dot=int(md.group(1)) if md else None, ngay=ngay, so_to_trinh=so_tt,
               o={"dot": f"{sk}!đầu trang", "ten_don_vi": "Tờ trình", "so_hd": "Tờ trình"})
+    if "CHUA_GAN" in ten_ns: ten_ns["CHUA_GAN"] = "CHƯA GÁN MÃ NS (chờ anh chọn)"           # tên CỐ ĐỊNH qua các đợt
     lines = []                                                            # 1 dòng / MÃ NS × (không HĐ | 'H' có HĐ: TRƯỚC VAT, tiền chi = đã gồm VAT)
     for (ma, h_), (net, gross) in sorted(theo_ns.items()):
         nh = None if ma == "CHUA_GAN" else f"HU_{ma}"

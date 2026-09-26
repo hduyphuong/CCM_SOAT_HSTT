@@ -141,9 +141,9 @@ def _kiem(hs, k, van_tay_da_co=()):
     h = k["hd"][ma]; ds_dong = k["dong"].get(ma, [])
     if hs.get("mau") == "HOAN_UNG_BCH":           # hoàn ứng chỉ ghi ĐỢT NÀY ⇒ kỳ trước = lũy kế đã ghi sổ (không để trống ⇒ tránh ĐIỀU CHỈNH âm giả)
         for l in hs["lines"]:
-            d = khop_dong(l, ds_dong); lk0 = k["lk_kl"].get((ma, d["stt"]), 0.0) if d else 0.0
+            d = next((x for x in ds_dong if str(x["stt"]) == l["stt"]), None); lk0 = k["lk_kl"].get((ma, d["stt"]), 0.0) if d else 0.0   # ghép theo MÃ NS, không theo tên
             l["kl_kt"] = l["tt_kt"] = lk0; l["kl_lk"] = l["tt_lk"] = lk0 + l["kl_kn"]
-        t = (sum(l["tt_kt"] for l in hs["lines"]), t[1], sum(l["tt_lk"] for l in hs["lines"])); hs["tong"] = t; tom.update(ky_truoc=t[0], luy_ke=t[2])
+        t = (k["lk_tien"][ma], t[1], k["lk_tien"][ma] + t[1]); hs["tong"] = t; tom.update(ky_truoc=t[0], luy_ke=t[2])   # kỳ trước = TOÀN BỘ lũy kế HĐ (kể cả mã NS đợt này không có)
     # lớp 1 — đợt
     dc = k["dot_cuoi"].get(ma, 0)
     dtu = k["dot_cuoi_tu"].get(ma, 0)
@@ -155,7 +155,7 @@ def _kiem(hs, k, van_tay_da_co=()):
     # lớp 2 — theo HĐ · lớp 4 — theo đợt trước
     khop = []
     for l in hs["lines"]:
-        d = khop_dong(l, ds_dong); khop.append((l, d))
+        d = next((x for x in ds_dong if str(x["stt"]) == l["stt"]), None) if hs.get("mau") == "HOAN_UNG_BCH" else khop_dong(l, ds_dong); khop.append((l, d))
         vt = f"{S}!dòng {l['dong']}"
         if d is None and hs.get("mau") == "HOAN_UNG_BCH":
             if l.get("nhom_moi") and l["nhom_moi"][3] not in k["ns"]: add("LUU_Y", "Theo HĐ", vt, l["nhom_moi"][3], "—", f"Mã NS {l['nhom_moi'][3]} không có trong ngân sách khung")
