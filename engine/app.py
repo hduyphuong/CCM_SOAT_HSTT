@@ -84,8 +84,11 @@ def xu_ly_nap(b):
         cu_rec["co"] = [dict(muc="CHAN", lop="Hồ sơ", vi_tri="file", hstt=i, doi_chieu="đã ghi sổ", mo_ta="Hồ sơ này ĐÃ GHI SỔ lúc " + str(cu_rec.get("luc_duyet")))]
         return cu_rec
     rec = dict(id=i, van_tay=vt, ten=ten, file=dich, luc=dt.datetime.now().isoformat(timespec="seconds"),
-               trang_thai=cu_rec["trang_thai"] if cu_rec else "CHO_DUYET",
-               phan_loai=kq["phan_loai"], tom_tat=kq["tom_tat"], co=kq["co"], ke_hoach=kh, ly_do=cu_rec.get("ly_do") if cu_rec else None, ket_qua=None)
+               trang_thai="CHO_DUYET",                                   # nạp lại (kể cả file đã TRẢ ĐỘI / YÊU CẦU SỬA) ⇒ soát lại từ đầu, chờ duyệt
+               phan_loai=kq["phan_loai"], tom_tat=kq["tom_tat"], co=kq["co"], ke_hoach=kh, ly_do=None, ket_qua=None,
+               lich_su=(cu_rec.get("lich_su") or []) + ([dict(trang_thai=cu_rec["trang_thai"], ly_do=cu_rec.get("ly_do"), luc=cu_rec.get("luc_duyet") or cu_rec.get("luc"))]
+                                                        if cu_rec and cu_rec["trang_thai"] != "CHO_DUYET" else []))
+    if cu_rec and cu_rec.get("hd_tam"): rec["hd_tam"] = cu_rec["hd_tam"]
     s[i] = rec; luu_so(da, s)
     return rec
 
