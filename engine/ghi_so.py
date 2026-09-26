@@ -23,6 +23,10 @@ def _ke_hoach_doi_tac(hs, kq, k):
     n_ps = max([int(s[2:]) for s in ps_co if s[2:].isdigit()] or [0])
     dong_moi, tt, gan, gop, thu_tu = [], [], {}, {}, []
     for l, st in kq["khop"]:
+        if st is None and (l.get("nhom_moi") or hs.get("mau") == "HOAN_UNG_BCH"):                          # hoàn ứng BCH: dòng theo MÃ NS, HĐ tạm ⇒ thêm TRONG_HD, không phải phát sinh
+            st = l["stt"]
+            if st not in gan: gan[st] = st; dong_moi.append(dict(stt=st, noi_dung=l["ds"], dvt=l["dvt"], don_gia=l["dg"], pham_vi="TRONG_HD", nhom=l.get("nhom"),
+                                                                 nhom_moi=l["nhom_moi"], nguon="webapp · hoàn ứng BCH (dòng theo mã NS)"))
         if st is None:
             key = na(l["ds"])
             if key not in gan:
@@ -53,6 +57,11 @@ def _ke_hoach_doi_tac(hs, kq, k):
 
 def _ghi_phan(wb, ph, ten_file):
     w7, w9, ma = wb.Worksheets(ph["ct"]), wb.Worksheets(ph["tt"]), ph["ma_hd"]
+    w1 = wb.Worksheets("N1_DanhMuc")
+    for d in ph["dong_moi"]:                                          # nhóm CV mới (hoàn ứng BCH → mã NS) ⇒ thêm vào N1 Q:T trước khi dòng HĐ tra
+        if d.get("nhom_moi") and not any(str(w1.Range(f"Q{r}").Value or "") == d["nhom_moi"][0] for r in range(3, w1.Cells(w1.Rows.Count, 17).End(XL_UP).Row + 1)):
+            r = w1.Cells(w1.Rows.Count, 17).End(XL_UP).Row + 1
+            for col, v in zip("QRST", d["nhom_moi"]): w1.Range(f"{col}{r}").Value = v
     for d in ph["dong_moi"]:                                          # dòng HĐ phát sinh mới — chép dòng cuối để giữ công thức
         last = w7.Cells(w7.Rows.Count, 1).End(XL_UP).Row; r = last + 1
         if last >= 2: w7.Range(f"A{last}:O{last}").Copy(w7.Range(f"A{r}"))

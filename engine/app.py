@@ -199,7 +199,7 @@ def xu_ly_hd_tam(b):
         a = dict(loai="HD_DOI_TAC", so_hd=cv.get("so_hd") or f"HĐ TẠM {ma}", ngay_ky=str(ngay)[:10] if ngay else dt.date.today().isoformat(), doi_tac_ten=ten,
                  loai_doi_tac=loai_dt, noi_dung=f"HĐ TẠM tự khai báo — {ly_do}", dang_hd="DON_GIA", gia_tri_truoc_vat=None, vat_pct=hs.get("vat") or 0,
                  pct_tam_ung=0, pct_tt_dot=1, pct_tt_quyet_toan=1, han_tt_ngay=0, don_vi_han="LICH",
-                 bang=[dict(stt=l["stt"], noi_dung=l["ds"], dvt=l["dvt"], kl=None, don_gia=l["dg"], thanh_tien=None) for l in hs["lines"]],
+                 bang=[] if hs.get("mau") == "HOAN_UNG_BCH" else [dict(stt=l["stt"], noi_dung=l["ds"], dvt=l["dvt"], kl=None, don_gia=l["dg"], thanh_tien=None) for l in hs["lines"]],
                  nguon=f"HĐ TẠM tự khai báo từ HSTT {rec['ten'][:50]} · {hom_nay}",
                  ghi_chu=f"CHƯA CÓ HĐ CHÍNH THỨC — HĐ tạm ({ly_do}) tạo ngày {hom_nay} từ HSTT; bổ sung HĐ thật thì cập nhật lại",
                  ho_so_thieu=f"HĐ chính thức (đang dùng HĐ TẠM — {ly_do})")

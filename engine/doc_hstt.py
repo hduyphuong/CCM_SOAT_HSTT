@@ -152,6 +152,24 @@ def doc_cong_nhat(path, sn, rows, h, H, cv, txt):
                 du_an_text=" ".join(txt), mau="CONG_NHAT", lk_cover=lk_cover)
 
 
+HU_MA_NS = [   # HOÀN ỨNG BCH: diễn giải dòng chi tiết → mã NS Prelims (đối chiếu sheet 'C. ChiPhiGianTiep' của NS R00 · anh chốt 26/09). Thứ tự = ưu tiên.
+    ("Prelim_3", "An toàn lao động", r"PHAN QUANG|BAO HO|AN TOAN|HSAT|THE AT|GKSK|NON BAO|DAY DAI"),
+    ("Prelim_9.2", "Chi phí công nhật cơ hữu", r"CONG NHAT"),
+    ("Prelim_9.3", "Chi phí khởi công dự án", r"KHOI CONG"),
+    ("Prelim_6", "Chi phí ngoại giao", r"NGOAI GIAO|TIEP KHACH"),
+    ("Prelim_2", "Hệ thống điện, nước tạm", r"TIEN DIEN|TIEN NUOC|DIEN NUOC"),
+    (None, "Dụng cụ thi công — CHỜ ANH CHỌN MÃ NS", r"THUOC|MANG HO|CO RUA|CO LE|ONG DIEU|XENG|NHO XAY|MUI KHOAN|MUI DUC|CHOI DOT NHUA|VE SINH SAN|BUA |KIM HAN"),
+    ("Prelim_5", "Chi phí sinh hoạt BCH", r"CHOI|XUC RAC|THUNG SON|NUOC UONG|SINH HOAT|NHA TRO|THUE NHA"),
+    ("Prelim_1", "Tiện ích văn phòng tạm + kho bãi", r"VAN PHONG|GHE|QUAT|WIFI|INTERNET|CUA CHINH|CUA SO|SIMILI|TAM OP|PHOTO|KHO|PALLET|BAI|HOC VAT TU|CHI MAY|^BAO$|MAY LANH"),
+]
+HU_NHOM_MAC_DINH = {1: "Prelim_5", 3: "Prelim_1", 4: "Prelim_6", 5: "Prelim_6"}   # không khớp từ khoá ⇒ theo nhóm La Mã của mẫu BCH (II 'phục vụ thi công' ⇒ chờ chọn)
+def ma_ns_hoan_ung(dien_giai, nhom_la_ma):
+    t = na(dien_giai).strip()
+    for ma, ten, rx in HU_MA_NS:
+        if re.search(rx, t): return ma, ten
+    ma = HU_NHOM_MAC_DINH.get(nhom_la_ma)
+    return (ma, next(t_ for m_, t_, _r in HU_MA_NS if m_ == ma)) if ma else (None, "CHƯA GÁN MÃ NS — chờ anh chọn")
+
 LA_MA = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10}
 def la_hoan_ung(wb):
     t = [na(s) for s in wb.sheetnames]
@@ -175,6 +193,7 @@ def doc_hoan_ung(path, wb):
     dau = " ".join(na(c) for r in rows[:h] for c in r if c)
     phan = nhom = None; gom, ten_nhom, dong_nhom, t_phan, t_nhom, ct = {}, {}, {}, {}, {}, {}
     net_a, gross_a, gross_b, ts_khac = {}, {}, {}, []                    # A = có hoá đơn ⇒ TÁCH VAT (anh chốt 26/09: chi phí nhập vào khung là TRƯỚC VAT)
+    theo_ns, ten_ns, chua_gan = {}, {}, []                                # (mã NS, 'H'/'') → [trước VAT, đã trả] · gán THEO TỪNG DÒNG chi tiết
     for i, r in enumerate(rows[h + 1:], h + 2):
         s = na(r[cS]).strip(); ds = str(r[cD] or "").strip(); g = r[cT]
         if s in ("A", "B") and ds: phan = s; t_phan[s] = (i, _so(g) or 0.0); continue
@@ -186,12 +205,16 @@ def doc_hoan_ung(path, wb):
         if isinstance(e, (int, float)) and isinstance(f, (int, float)) and abs(e * f - g) > 1:
             add("CHAN", "Số học", f"{sk}!dòng {i}", round(g), round(e * f), f"Thành tiền ≠ KL × ĐG: {ds[:40]}")
         gom[nhom] += g; ct[(phan, nhom)] = ct.get((phan, nhom), 0.0) + g
+        ts = 0.0
         if phan == "A":                                                   # thuế suất: ghi chú dòng ghi 'x%' / 'KCT' ⇒ theo đó, không ghi ⇒ mặc định 8%
             gc = na(r[cC]) if cC is not None else ""; mv = re.search(r"(\d+(?:[.,]\d+)?)\s*%", gc)
             ts = 0.0 if "KCT" in gc or "KHONG CHIU THUE" in gc else (float(mv.group(1).replace(",", ".")) / 100 if mv else 0.08)
             if ts != 0.08: ts_khac.append((i, ts))
             net_a[nhom] = net_a.get(nhom, 0.0) + g / (1 + ts); gross_a[nhom] = gross_a.get(nhom, 0.0) + g
         else: gross_b[nhom] = gross_b.get(nhom, 0.0) + g
+        ma_ns, tn_ = ma_ns_hoan_ung(ds, nhom); key = (ma_ns or "CHUA_GAN", "H" if phan == "A" else ""); ten_ns[key[0]] = tn_
+        v_ = theo_ns.setdefault(key, [0.0, 0.0]); v_[0] += g / (1 + ts); v_[1] += g
+        if not ma_ns: chua_gan.append((i, ds, g))
     for (p, n_), (i, v) in t_nhom.items():
         if abs(ct.get((p, n_), 0.0) - v) > 1: add("CHAN", "Số học", f"{sk}!dòng {i}", round(ct.get((p, n_), 0.0)), round(v), f"Σ chi tiết ≠ dòng nhóm {ten_nhom[n_][:35]} (phần {p})")
     for p, (i, v) in t_phan.items():
@@ -237,13 +260,15 @@ def doc_hoan_ung(path, wb):
     md = re.search(r"KY THU\s*(\d+)", dau) or re.search(r"DOT\s*(\d+)", " ".join(txt))
     cv = dict(ten_don_vi="Ban chỉ huy công trường", so_hd=None, dot=int(md.group(1)) if md else None, ngay=ngay, so_to_trinh=so_tt,
               o={"dot": f"{sk}!đầu trang", "ten_don_vi": "Tờ trình", "so_hd": "Tờ trình"})
-    lines = []                                                            # mỗi nhóm 2 dòng: 'n' không hoá đơn (giữ nguyên) · 'nH' có hoá đơn (TRƯỚC VAT, tiền chi = đã gồm VAT)
-    for n in sorted(gom):
-        b_, a_, g_ = gross_b.get(n, 0.0), net_a.get(n, 0.0), gross_a.get(n, 0.0)
-        lines.append(dict(dong=dong_nhom[n], khung="", stt=str(n), ds=ten_nhom[n], dvt="đ", kl_hd=None, dg=1.0, kl_kt=0.0, kl_kn=b_, kl_lk=b_,
-                          tt_kt=0.0, tt_kn=b_, tt_lk=b_, ngoai=False))
-        lines.append(dict(dong=dong_nhom[n], khung="", stt=f"{n}H", ds=f"{ten_nhom[n]} — có hoá đơn (trước VAT)", dvt="đ", kl_hd=None, dg=1.0,
-                          kl_kt=0.0, kl_kn=a_, kl_lk=a_, tt_kt=0.0, tt_kn=a_, tt_lk=a_, ngoai=False, vat_rieng=(g_ / a_ - 1) if a_ else 0.08))
+    lines = []                                                            # 1 dòng / MÃ NS × (không HĐ | 'H' có HĐ: TRƯỚC VAT, tiền chi = đã gồm VAT)
+    for (ma, h_), (net, gross) in sorted(theo_ns.items()):
+        nh = None if ma == "CHUA_GAN" else f"HU_{ma}"
+        lines.append(dict(dong=h + 2, khung="", stt=ma + h_, ds=f"Hoàn ứng BCH — {ten_ns[ma]}" + (" — có hoá đơn (trước VAT)" if h_ else ""), dvt="đ", kl_hd=None, dg=1.0,
+                          kl_kt=0.0, kl_kn=net, kl_lk=net, tt_kt=0.0, tt_kn=net, tt_lk=net, ngoai=False, nhom=nh,
+                          nhom_moi=(nh, f"Hoàn ứng BCH → {ten_ns[ma]}", "đ", ma) if nh else None, **({"vat_rieng": gross / net - 1} if h_ and net else {})))
+    if chua_gan:
+        add("LUU_Y", "Theo HĐ", f"{sk}!dòng {chua_gan[0][0]}…", round(sum(x[2] for x in chua_gan)), len(chua_gan),
+            "Dòng CHƯA GÁN MÃ NS (dụng cụ thi công…): " + ", ".join(x[1][:18] for x in chua_gan[:8]) + (" …" if len(chua_gan) > 8 else "") + " — anh chọn mã NS để em thêm luật")
     if sum(gross_a.values()) > 1:
         add("LUU_Y", "Theo HĐ", f"{sk} phần A", round(sum(gross_a.values())), round(sum(net_a.values())),
             "Chi phí CÓ hoá đơn đã TÁCH VAT (mặc định 8%" + (f"; {len(ts_khac)} dòng theo thuế suất ghi chú" if ts_khac else "") + ") — ghi chi phí trước VAT, tiền chi = đã gồm VAT")

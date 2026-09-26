@@ -157,6 +157,9 @@ def _kiem(hs, k, van_tay_da_co=()):
     for l in hs["lines"]:
         d = khop_dong(l, ds_dong); khop.append((l, d))
         vt = f"{S}!dòng {l['dong']}"
+        if d is None and hs.get("mau") == "HOAN_UNG_BCH":
+            if l.get("nhom_moi") and l["nhom_moi"][3] not in k["ns"]: add("LUU_Y", "Theo HĐ", vt, l["nhom_moi"][3], "—", f"Mã NS {l['nhom_moi'][3]} không có trong ngân sách khung")
+            continue                                                  # HĐ tạm BCH: dòng theo mã NS tự thêm khi ghi sổ
         if d is None:
             if abs(l["kl_lk"]) > 0 or abs(l["tt_lk"]) > 0:
                 add("LUU_Y", "Theo HĐ", vt, l["ds"][:40], "—", "Dòng chưa có trong HĐ — ghi sổ sẽ thêm dòng PHÁT SINH (N7), cần phụ lục")
