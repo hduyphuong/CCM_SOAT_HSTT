@@ -201,8 +201,10 @@ def _soat_scan(da, i):
     rec.update(trang_thai="CHO_DUYET", phan_loai=kq["phan_loai"], tom_tat=kq["tom_tat"], co=kq["co"], ke_hoach=kh)
     s[i] = rec; luu_so(da, s); return rec
 
+AI_CHAY = set()                                                     # (dự án, id) đang có luồng AI đọc THẬT
 def _chay_ai_scan(da, i):
     """Luồng nền: AI đọc PDF (1–3 phút) ⇒ lưu kết quả ⇒ soát. Lỗi ⇒ trạng thái LOI_AI + cờ CHẶN ghi rõ lý do."""
+    AI_CHAY.add((da, i))
     try:
         ai, meta = DS.doc(tuyet_doi(so_nap(da)[i]["file"]), CTY)
         with KHOA:
@@ -210,6 +212,7 @@ def _chay_ai_scan(da, i):
     except Exception as e:
         with KHOA:
             s = so_nap(da); s[i].update(trang_thai="LOI_AI", co=[dict(muc="CHAN", lop="Hồ sơ", vi_tri="PDF", hstt="—", doi_chieu="—", mo_ta=f"AI đọc bản scan lỗi: {e}"[:400])]); luu_so(da, s)
+    finally: AI_CHAY.discard((da, i))
 
 def xu_ly_doc_scan(b):
     """HSTT CHỈ CÓ BẢN SCAN / PDF KÝ ⇒ AI đọc số (chạy nền). Trả ngay bản ghi 'DANG_DOC_AI'; giao diện hỏi lại /ho-so tới khi xong."""
@@ -221,7 +224,7 @@ def xu_ly_doc_scan(b):
     with KHOA:
         s = so_nap(da); cu = s.get(i)
         if cu and cu["trang_thai"] == "DA_GHI_SO": raise ValueError("Bản scan này ĐÃ GHI SỔ trước đó")
-        if cu and cu["trang_thai"] == "DANG_DOC_AI": return cu
+        if cu and cu["trang_thai"] == "DANG_DOC_AI" and (da, i) in AI_CHAY: return cu      # đang đọc thật ⇒ chờ · kẹt (engine từng tắt giữa chừng) ⇒ đọc lại
         rec = dict(id=i, van_tay=vt, ten=ten, file=dich, luc=dt.datetime.now().isoformat(timespec="seconds"), mau="SCAN_AI", trang_thai="DANG_DOC_AI",
                    phan_loai={}, tom_tat={}, co=[], ke_hoach=None, ly_do=None, ket_qua=None)
         s[i] = rec; luu_so(da, s)
@@ -315,6 +318,9 @@ class H(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     for st in (sys.stdout, sys.stderr): st.reconfigure(encoding="utf-8", errors="replace")   # console Windows cp1252 không in được tiếng Việt
     os.makedirs(DATA, exist_ok=True)
+    for _da in du_an():                                           # engine tắt giữa lúc AI đọc scan ⇒ khởi động lại thì ĐỌC TIẾP, không kẹt 'đang đọc'
+        for _i, _r in so_nap(_da).items():
+            if _r.get("trang_thai") == "DANG_DOC_AI": threading.Thread(target=_chay_ai_scan, args=(_da, _i), daemon=True).start()
     NEN.khoi_dong(DATA, du_an, CTY)                                  # luồng AI đọc hồ sơ nền (gói Claude của người dùng) + xếp lại việc dở
     for da_, v in du_an().items():                                   # bổ sung cây thư mục (idempotent) — đối tác mới có HĐ thì có folder
         try: C.tao_cay(DATA, da_, v.get("khung"))

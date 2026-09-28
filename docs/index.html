@@ -336,7 +336,7 @@ function the(r) {
     <span class="chip">${esc(pl.ma_hd || "chưa xác định HĐ")}</span><span class="chip">${esc(pl.loai_doi_tac || "")}</span>
     <span class="chip">${esc(pl.loai_hs || "")}</span><span class="chip">Đợt ${esc(t.dot)} · ${esc(t.ngay)}</span>
     <span class="sp"></span>${nChan ? `<span class="chip er">${nChan} CHẶN</span>` : ""}${nLuu ? `<span class="chip wa">${nLuu} lưu ý</span>` : ""}
-    ${!co.length ? `<span class="chip ok">Đạt — không có cờ</span>` : ""}<span class="chip ${r.trang_thai === "DA_GHI_SO" ? "ok" : ""}">${trang}</span></div>
+    ${r.trang_thai === "DANG_DOC_AI" ? `<span class="chip wa">🤖 AI đang đọc bản scan… (F5 sau 1–3 phút)</span>` : !co.length ? `<span class="chip ok">Đạt — không có cờ</span>` : ""}<span class="chip ${r.trang_thai === "DA_GHI_SO" ? "ok" : ""}">${trang}</span></div>
   <div class="body">
     <div class="left">
       <div class="kv"><span>Đơn vị</span><b>${esc(t.don_vi)}</b></div><div class="kv"><span>Số HĐ trên COVER</span><b>${esc(t.so_hd)}</b></div>
