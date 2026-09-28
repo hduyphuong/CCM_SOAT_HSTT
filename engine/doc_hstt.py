@@ -158,7 +158,7 @@ HU_MA_NS = [   # HOÀN ỨNG BCH: diễn giải dòng chi tiết → mã NS Prel
     ("Prelim_9.3", "Chi phí khởi công dự án", r"KHOI CONG"),
     ("Prelim_6", "Chi phí ngoại giao", r"NGOAI GIAO|TIEP KHACH"),
     ("Prelim_2", "Hệ thống điện, nước tạm", r"TIEN DIEN|TIEN NUOC|DIEN NUOC"),
-    (None, "Dụng cụ thi công — CHỜ ANH CHỌN MÃ NS", r"THUOC|MANG HO|CO RUA|CO LE|ONG DIEU|XENG|NHO XAY|MUI KHOAN|MUI DUC|CHOI DOT NHUA|VE SINH SAN|BUA |KIM HAN"),
+    ("NCC_VTP", "Vật tư phụ / dụng cụ thi công", r"THUOC|MANG HO|CO RUA|CO LE|ONG DIEU|XENG|NHO XAY|MUI KHOAN|MUI DUC|CHOI DOT NHUA|VE SINH SAN|BUA |KIM HAN|CUOC|\bSON\b|\bCO\b|KEM BUOC|DAY BUOC"),
     ("Prelim_5", "Chi phí sinh hoạt BCH", r"CHOI|XUC RAC|THUNG SON|NUOC UONG|SINH HOAT|NHA TRO|THUE NHA"),
     ("Prelim_1", "Tiện ích văn phòng tạm + kho bãi", r"VAN PHONG|GHE|QUAT|WIFI|INTERNET|CUA CHINH|CUA SO|SIMILI|TAM OP|PHOTO|KHO|PALLET|BAI|HOC VAT TU|CHI MAY|^BAO$|MAY LANH"),
 ]
