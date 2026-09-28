@@ -49,7 +49,7 @@ def la_claim_cdt(wb): return any("BANG GIA TRI KL" in na(s) for s in wb.sheetnam
 
 def doc_claim(path, wb):
     sn = next(s for s in wb.sheetnames if "BANG GIA TRI KL" in na(s))
-    rows = [list(r) for r in wb[sn].iter_rows(min_row=1, max_row=200, max_col=16, values_only=True)]
+    rows = [list(r) for r in wb[sn].iter_rows(min_row=1, max_row=3000, max_col=16, values_only=True)]
     h = next(i for i, r in enumerate(rows) if any(na(c) == "NOI DUNG CONG VIEC" for c in r))
     H, S = [na(c) for c in rows[h]], [na(c) for c in rows[h + 1]]
     col = lambda lab, arr: next((j for j, c in enumerate(arr) if c.startswith(lab)), None)

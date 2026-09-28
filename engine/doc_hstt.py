@@ -59,7 +59,7 @@ def doc_file(path):
     if not sn and la_hoan_ung(wb):                             # hồ sơ HOÀN ỨNG quỹ BCH (tờ trình + bảng kê + phiếu tạm ứng + giấy thanh toán tạm ứng)
         kq = doc_hoan_ung(path, wb); wb.close(); return kq
     if not sn: wb.close(); raise ValueError("Không thấy sheet bảng giá trị / bảng KL (05.Giá trị hoặc 5.BẢNG KL)")
-    rows = [list(r) for r in wb[sn].iter_rows(min_row=1, max_row=200, max_col=30, values_only=True)]
+    rows = [list(r) for r in wb[sn].iter_rows(min_row=1, max_row=3000, max_col=30, values_only=True)]
     txt = []
     sc = next((s for s in wb.sheetnames if "COVER" in na(s)), None)
     for r in (wb[sc].iter_rows(min_row=1, max_row=4, max_col=10, values_only=True) if sc else []): txt += [na(c) for c in r if c]

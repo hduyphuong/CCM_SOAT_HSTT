@@ -99,7 +99,12 @@ def khop_dong(l, ds_dong):
     """Dòng HSTT → dòng HĐ trong khung: cùng nội dung (+ STT, + ĐG khi trùng). None = phát sinh chưa có trong HĐ."""
     c = [d for d in ds_dong if na(d["noi_dung"]) == na(l["ds"])]
     if len(c) > 1: c = [d for d in c if d["stt"] == l["stt"]] or [d for d in c if abs(d["don_gia"] - l["dg"]) < 0.5] or c[:1]
-    return c[0] if c else None
+    d = c[0] if c else None
+    if d is not None and d["dvt"] and l["dvt"] and _dv(d["dvt"]) != _dv(l["dvt"]):     # trùng TÊN nhưng khác ĐVT (công ↔ giờ) ⇒ chắc chắn sai dòng ⇒ ghép theo ĐG + ĐVT
+        g = [x for x in ds_dong if x["don_gia"] and abs(x["don_gia"] - l["dg"]) <= 0.5 and _dv(x["dvt"]) == _dv(l["dvt"])]
+        if len(g) == 1: return g[0]
+    return d
+def _dv(s): return na(str(s or "").replace("²", "2").replace("³", "3")).replace(" ", "").replace(".", "")
 
 BO_TU = {"NHA", "O", "XA", "HOI", "DU", "AN", "CONG", "TRINH", "CHUNG", "CU", "KHU", "TOA", "THAP", "KHUNG", "THU", "WEBAPP", "BO", "DOT"}
 def kiem_du_an(hs, k):
