@@ -84,6 +84,7 @@ def ghi_hd(khung, da, rec, sua, thu_muc_backup):
                          ("don_gia", d["don_gia"]), ("nguon", f"AI đọc {rec['ten'][:40]}" + (f" · {d['ghi']}" if d.get("ghi") else ""))):
                 if v not in (None, ""): wc.Range(f"{c[k]}{rr}").Value = v
             for col, f in T.ct_cong_thuc(sh_ct, rr).items(): wc.Range(f"{col}{rr}").Formula = f
+            if not cdt: _gan_nhom_dong(wc, rr, d["noi_dung"], d["dvt"])
             wc.Range(f"{c['don_gia']}{rr}").NumberFormat = TIEN; wc.Range(f"{c['thanh_tien']}{rr}").NumberFormat = TIEN
         app.CalculateFullRebuild()
         # TỰ KIỂM
@@ -137,6 +138,7 @@ def ghi_phu_luc(khung, da, rec, thu_muc_backup):
                          ("dvt", d["dvt"]), ("kl_hd", d["kl"] if d["kl"] != 1 or d.get("ghi") else None), ("don_gia", d["don_gia"]), ("nguon", f"PL {so_pl} · AI đọc {rec['ten'][:40]}")):
                 if v not in (None, ""): wc.Range(f"{c[k]}{rr}").Value = v
             for col, f in T.ct_cong_thuc(sh_ct, rr).items(): wc.Range(f"{col}{rr}").Formula = f
+            if not cdt: _gan_nhom_dong(wc, rr, d["noi_dung"], d["dvt"])
             wc.Range(f"{c['don_gia']}{rr}").NumberFormat = TIEN
         app.CalculateFullRebuild()
         so = sum(1 for rr in range(r0, r0 + len(dong)) if wc.Range(f"A{rr}").Value == ma_hd and str(wc.Range(f"B{rr}").Value).startswith(f"PL{n}."))
@@ -385,6 +387,7 @@ def thay_hd_tam(khung, ma_hd, rec, thu_muc_backup, xoa_trung=None):
                           ("don_gia", d["don_gia"]), ("nguon", f"AI đọc {rec['ten'][:40]} · thay HĐ tạm" + (f" · {d['ghi']}" if d.get("ghi") else ""))):
                 if v not in (None, ""): w7.Range(f"{c7[kk]}{rr}").Value = v
             for col, fx in T.ct_cong_thuc("N7_HD_DoiTac_ChiTiet", rr).items(): w7.Range(f"{col}{rr}").Formula = fx
+            _gan_nhom_dong(w7, rr, d["noi_dung"], d["dvt"])
             w7.Range(f"{c7['don_gia']}{rr}").NumberFormat = TIEN; w7.Range(f"{c7['thanh_tien']}{rr}").NumberFormat = TIEN
         # xoá HĐ trùng (anh tick chọn) — chỉ khi chưa có thanh toán
         da_xoa = None
@@ -415,3 +418,16 @@ def thay_hd_tam(khung, ma_hd, rec, thu_muc_backup, xoa_trung=None):
     finally:
         if wb is not None: wb.Close(False)
         app.Quit()
+
+
+def _gan_nhom_dong(w7, rr, noi_dung, dvt):
+    """Dòng HĐ đội vừa ghi ⇒ gán nhóm CV theo bảng luật anh duyệt (gan_nhom_doi.LUAT) — chi phí lên đúng mã NS trên báo cáo (sự cố 28/09: 1,13 tỷ nhân công không lên BC)."""
+    import gan_nhom_doi as GN
+    nh, dong_n1 = GN.nhom_cho(noi_dung, dvt)
+    if not nh: return None
+    w1 = w7.Parent.Worksheets("N1_DanhMuc")
+    if not _tim(w1, "Q", nh, 3):
+        r = _dong_cuoi(w1, "Q", 2) + 1
+        for col, v in zip("QRST", dong_n1): w1.Range(f"{col}{r}").Value = v
+    w7.Range(f"{T.cot(T.CT_COLS)['nhom']}{rr}").Value = nh
+    return nh
