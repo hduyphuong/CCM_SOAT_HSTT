@@ -212,9 +212,19 @@ def _chay_ai_scan(da, i):
     """Luồng nền: AI đọc PDF (1–3 phút) ⇒ lưu kết quả ⇒ soát. Lỗi ⇒ trạng thái LOI_AI + cờ CHẶN ghi rõ lý do."""
     AI_CHAY.add((da, i))
     try:
-        ai, meta = DS.doc(tuyet_doi(so_nap(da)[i]["file"]), CTY)
+        f_ = tuyet_doi(so_nap(da)[i]["file"]); k_ = K.doc_khung(du_an()[da]["khung"])
+        ai, meta = DS.doc(f_, CTY, k_)
         with KHOA:
-            s = so_nap(da); s[i].update(ai=ai, ai_meta=meta); luu_so(da, s); _soat_scan(da, i)
+            s = so_nap(da); s[i].update(ai=ai, ai_meta=meta); luu_so(da, s); r1 = _soat_scan(da, i)
+        loi = [c["mo_ta"] + (f" (HSTT {c['hstt']} ↔ đối chiếu {c['doi_chieu']}, {c['vi_tri']})") for c in r1["co"] if c["muc"] == "CHAN" and c["lop"] in ("Số học", "Theo HĐ")]
+        if loi:                                                           # còn lệch ⇒ đọc lại 1 lần, kèm đúng lỗi; giữ lần có ÍT cờ CHẶN hơn
+            ai2, meta2 = DS.doc(f_, CTY, k_, "\n".join(loi[:12]))
+            with KHOA:
+                s = so_nap(da); cu = s[i]["ai"]; s[i].update(ai=ai2); luu_so(da, s); r2 = _soat_scan(da, i)
+                n1, n2 = sum(c["muc"] == "CHAN" for c in r1["co"]), sum(c["muc"] == "CHAN" for c in r2["co"])
+                s = so_nap(da)
+                if n2 > n1: s[i].update(ai=cu); luu_so(da, s); _soat_scan(da, i)
+                s = so_nap(da); s[i]["ai_doc_lai"] = dict(lan1_chan=n1, lan2_chan=n2, dung=("lần 2" if n2 <= n1 else "lần 1"), meta=meta2); luu_so(da, s)
     except Exception as e:
         with KHOA:
             s = so_nap(da); s[i].update(trang_thai="LOI_AI", co=[dict(muc="CHAN", lop="Hồ sơ", vi_tri="PDF", hstt="—", doi_chieu="—", mo_ta=f"AI đọc bản scan lỗi: {e}"[:400])]); luu_so(da, s)

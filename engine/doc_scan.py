@@ -5,13 +5,13 @@ import datetime as dt, re, ai_doc
 from doc_hstt import na
 S, I, N, B = ai_doc.S, ai_doc.I, ai_doc.N, ai_doc.B
 DONG = {"type": "object", "properties": {"stt": S, "noi_dung": S, "dvt": S, "don_gia": N, "kl_ky_truoc": N, "kl_ky_nay": N, "kl_luy_ke": N,
-                                         "tt_ky_truoc": N, "tt_ky_nay": N, "tt_luy_ke": N, "trang": I}, "required": ["noi_dung"]}
+                                         "tt_ky_truoc": N, "tt_ky_nay": N, "tt_luy_ke": N, "trang": I, "stt_hd": S}, "required": ["noi_dung"]}
 SCHEMA = {"type": "object", "properties": {
     "loai_ho_so": {"type": "string", "enum": ["THANH_TOAN", "TAM_UNG", "QUYET_TOAN", "KHAC"]}, "ly_do_loai": S, "so_trang": I,
     "don_vi": S, "so_hd": S, "du_an": S, "dot": I, "ngay": S, "vat_pct": N,
     "tong_ky_truoc": N, "tong_ky_nay": N, "tong_luy_ke": N,
     "tam_ung_de_nghi": N, "thu_hoi_tam_ung_ky_nay": N, "giu_lai_ky_nay": N, "de_nghi_thanh_toan": N,
-    "bang": {"type": "array", "items": DONG}, "co_chu_ky": B,
+    "bang": {"type": "array", "items": DONG}, "co_chu_ky": B, "ma_hd": S, "tu_kiem": S,
     "nguon": {"type": "object", "additionalProperties": {"type": "string"}}, "khong_chac": {"type": "array", "items": {"type": "string"}}, "ghi_chu": S},
     "required": ["loai_ho_so", "bang", "khong_chac"]}
 HUONG_DAN = """Bạn là QS/CCM người Việt, đọc BẢN SCAN hồ sơ thanh toán (HSTT) do đội thi công / thầu phụ / nhà cung cấp gửi công ty {cty}, để nhập sổ kiểm soát chi phí. Chính xác tuyệt đối về số.
@@ -19,13 +19,29 @@ HUONG_DAN = """Bạn là QS/CCM người Việt, đọc BẢN SCAN hồ sơ than
 'loai_ho_so': TAM_UNG nếu chỉ là giấy đề nghị tạm ứng (không có khối lượng thực hiện kỳ này); THANH_TOAN nếu có bảng khối lượng / giá trị thực hiện; QUYET_TOAN nếu là hồ sơ quyết toán.
 Tiền = số VND (không dấu phân cách); % = thập phân (8% → 0.08); ngày = YYYY-MM-DD (ngày lập / ký hồ sơ). Tổng kỳ trước / kỳ này / lũy kế = giá trị TRƯỚC VAT.
 'bang' = từng dòng công việc của BẢNG GIÁ TRỊ THANH TOÁN (có đơn giá + thành tiền) — KHÔNG lấy bảng diễn giải / chi tiết khối lượng, KHÔNG đưa dòng tiêu đề nhóm, dòng cộng, dòng tổng; KL và thành tiền kỳ trước / kỳ này / lũy kế đọc ĐÚNG CỘT; mỗi dòng ghi 'trang'.
-'nguon' = trang lấy từng số tổng (khoá = tên trường). Số nào mờ / bị che / không đọc rõ ⇒ để null VÀ thêm TÊN TRƯỜNG (vd 'ngay', 'tong_ky_nay') vào 'khong_chac'; giải thích để ở 'ghi_chu'. TUYỆT ĐỐI KHÔNG ĐOÁN, KHÔNG TỰ TÍNH BÙ số."""
+'nguon' = trang lấy từng số tổng (khoá = tên trường). Số nào mờ / bị che / không đọc rõ ⇒ để null VÀ thêm TÊN TRƯỜNG (vd 'ngay', 'tong_ky_nay') vào 'khong_chac'; giải thích để ở 'ghi_chu'. TUYỆT ĐỐI KHÔNG ĐOÁN, KHÔNG TỰ TÍNH BÙ số.
+QUY TẮC BẢNG (bắt buộc):
+- 'bang' CHỈ gồm DÒNG LÁ có số lượng + đơn giá của bảng giá trị / khối lượng thanh toán. KHÔNG đưa: dòng tiêu đề nhóm (A, B, I, II…), dòng 'Đợt 1/2/3…', dòng CỘNG/TỔNG, VAT, giữ lại, tạm ứng, hoàn ứng, khấu trừ, đề nghị thanh toán.
+- Bảng chấm công / diễn giải chi tiết chỉ dùng để ĐỐI CHIẾU, không đưa vào 'bang' nếu đã có bảng khối lượng thanh toán.
+- Nếu có file ngu_canh.txt: 'ma_hd' = mã HĐ khớp; mỗi dòng ghi 'stt_hd' = STT dòng HĐ tương ứng (cùng công việc, cùng ĐVT, cùng đơn giá); không có dòng tương ứng thì để null. Bảng không ghi KL kỳ trước từng dòng thì để null (KHÔNG lấy từ ngu_canh).
+- TỰ KIỂM trước khi trả: Σ tt_ky_nay các dòng = tong_ky_nay (dòng TỔNG); KL × ĐG = thành tiền từng dòng; tổng kỳ trước + kỳ này = lũy kế. Ghi kết quả vào 'tu_kiem'; lệch thì ĐỌC LẠI trang liên quan trước khi trả."""
+
+def ngu_canh_hd(k, phan_hoi=None):
+    """Sổ sách hiện có (HĐ đối tác + dòng HĐ + KL đã thanh toán) cho AI ghép dòng; kèm lỗi lần đọc trước (nếu có)."""
+    out = ["DANH SÁCH HỢP ĐỒNG ĐỐI TÁC TRONG SỔ (STT | nội dung | ĐVT | đơn giá | KL đã thanh toán lũy kế):"]
+    for m, h in k["hd"].items():
+        if m.startswith("HD-CDT"): continue
+        out.append(f"\n== {m} · {k['doi_tac'].get(h['ma_doi_tac'], ('?',))[0]} · số HĐ {h['so_hd']}")
+        for d in k["dong"].get(m, []):
+            out.append(f"  STT {d['stt']} | {d['noi_dung']} | {d['dvt']} | {d['don_gia']:,.0f} | {k['lk_kl'].get((m, str(d['stt'])), 0):,.2f}")
+    if phan_hoi: out.append("\nLẦN ĐỌC TRƯỚC BỊ LỆCH — hãy đọc lại kỹ các trang liên quan:\n" + phan_hoi)
+    return "\n".join(out)
 TIEN = ("tong_ky_truoc", "tong_ky_nay", "tong_luy_ke", "tam_ung_de_nghi", "thu_hoi_tam_ung_ky_nay", "giu_lai_ky_nay", "de_nghi_thanh_toan", "dot", "vat_pct")
 NGUONG = 10
 
-def doc(path, cty):
-    """Gọi AI (chạy lâu 1–3 phút) — trả (kết quả thô, meta)."""
-    return ai_doc.doc(path, cty, schema=SCHEMA, huong_dan=HUONG_DAN, timeout=1800)
+def doc(path, cty, k=None, phan_hoi=None):
+    """Gọi AI (chạy lâu 1–3 phút) — trả (kết quả thô, meta). k = khung (kiem.doc_khung) ⇒ gửi kèm ngữ cảnh HĐ."""
+    return ai_doc.doc(path, cty, schema=SCHEMA, huong_dan=HUONG_DAN, timeout=1800, ngu_canh=ngu_canh_hd(k, phan_hoi) if k else None)
 
 def _n(v): return float(v) if isinstance(v, (int, float)) else 0.0
 
@@ -43,7 +59,7 @@ def dung_hs(ai, path):
         lk = _n(x["kl_luy_ke"]) if isinstance(x.get("kl_luy_ke"), (int, float)) else kt + kn
         tk, tn = _n(x.get("tt_ky_truoc")), _n(x.get("tt_ky_nay"))
         tl = _n(x["tt_luy_ke"]) if isinstance(x.get("tt_luy_ke"), (int, float)) else tk + tn
-        lines.append(dict(dong=f"tr.{x.get('trang') or '?'} #{i}", khung="", stt=str(x.get("stt") or i), ds=str(x.get("noi_dung") or "").strip(),
+        lines.append(dict(dong=f"tr.{x.get('trang') or '?'} #{i}", khung="", stt=str(x.get("stt") or i), stt_hd=x.get("stt_hd"), ds=str(x.get("noi_dung") or "").strip(),
                           dvt=str(x.get("dvt") or "").strip(), kl_hd=None, dg=_n(x.get("don_gia")), kl_kt=kt, kl_kn=kn, kl_lk=lk,
                           tt_kt=tk, tt_kn=tn, tt_lk=tl, ngoai=False))
     kt_tu_khung = bool(lines) and all(x.get("kl_ky_truoc") is None for x in (ai.get("bang") or []) if x.get("dvt"))
@@ -99,8 +115,14 @@ def ghep_dong_hd(hs, ds_dong):
     (phải trội hẳn). Các dòng scan cùng 1 dòng HĐ (nhiều căn/tầng) ⇒ CỘNG GỘP, lấy đúng tên/ĐVT/ĐG của HĐ ⇒ soát lũy kế như HSTT Excel.
     Không ghép được (sai giá, không có trong HĐ) ⇒ giữ nguyên ⇒ kiem.py CHẶN."""
     gop, le, ghep = {}, [], 0
+    ai_sai = []
     for l in hs["lines"]:
-        c = [d for d in ds_dong if d["don_gia"] and abs(d["don_gia"] - l["dg"]) <= 0.5]
+        dai = next((d for d in ds_dong if l.get("stt_hd") and str(d["stt"]) == str(l["stt_hd"])), None)
+        if dai and dai["don_gia"] and abs(dai["don_gia"] - l["dg"]) <= 0.5 and _dvt(dai["dvt"]) == _dvt(l["dvt"]):
+            c = [dai]                                                     # AI ghép + code xác nhận ĐG, ĐVT
+        else:
+            if dai: ai_sai.append(f"{l['ds'][:25]} → STT {l['stt_hd']}")
+            c = [d for d in ds_dong if d["don_gia"] and abs(d["don_gia"] - l["dg"]) <= 0.5]
         c2 = [d for d in c if _dvt(d["dvt"]) == _dvt(l["dvt"])] or c
         if len(c2) > 1:
             diem = sorted(((len(_tu(d["noi_dung"]) & _tu(l["ds"])), i) for i, d in enumerate(c2)), reverse=True)
@@ -114,5 +136,6 @@ def ghep_dong_hd(hs, ds_dong):
     for g in gop.values():
         if g["n"] > 1: g["dong"] = f"{g['dong']} (+{g['n'] - 1} dòng)"
     hs["lines"] = list(gop.values()) + le; hs["da_ghep"] = True
+    if ai_sai: hs["kiem_rieng"].append(("LUU_Y", "Theo HĐ", "PDF", f"{len(ai_sai)} dòng", "—", "AI ghép STT nhưng ĐG/ĐVT KHÁC dòng HĐ ⇒ app ghép lại theo giá: " + "; ".join(ai_sai[:4])))
     hs["kiem_rieng"].append(("LUU_Y", "Theo HĐ", "PDF", f"{ghep} dòng scan", f"{len(gop)} dòng HĐ",
                              f"Đã GHÉP {ghep} dòng đọc từ scan vào {len(gop)} dòng HĐ theo ĐƠN GIÁ + ĐVT (+ tên)" + (f" · {len(le)} dòng KHÔNG ghép được" if le else "")))

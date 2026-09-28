@@ -37,7 +37,7 @@ def trich_excel(path, toi_da=1500):
             if n >= toi_da: out.append("…(cắt bớt)"); break
     wb.close(); return "\n".join(out)
 
-def doc(path, cty="(chưa khai báo)", schema=None, huong_dan=None, timeout=1500, model=None):
+def doc(path, cty="(chưa khai báo)", schema=None, huong_dan=None, timeout=1500, model=None, ngu_canh=None):
     """Trả (ket_qua_dict, meta). Lỗi/hết hạn mức ⇒ raise RuntimeError có thông điệp dễ hiểu."""
     d = tempfile.mkdtemp(prefix="ccm_ai_"); duoi = os.path.splitext(path)[1].lower()
     try:
@@ -49,6 +49,9 @@ def doc(path, cty="(chưa khai báo)", schema=None, huong_dan=None, timeout=1500
             yeu_cau = ("Đọc file hs.txt trong thư mục hiện tại bằng công cụ Read (nội dung file Excel đã trích thành văn bản: '=== SHEET: tên' rồi mỗi dòng "
                        "là các ô cách nhau bởi ' | '). File có thể dài — đọc tiếp bằng tham số offset/limit tới HẾT file, rồi trả kết quả.")
         else: raise RuntimeError(f"Chưa hỗ trợ AI đọc đuôi {duoi}")
+        if ngu_canh:                                                       # sổ sách hiện có ⇒ AI ghép đúng dòng HĐ, không đoán
+            open(os.path.join(d, "ngu_canh.txt"), "w", encoding="utf-8").write(ngu_canh)
+            yeu_cau += " TRƯỚC KHI đọc hồ sơ, đọc file ngu_canh.txt (danh sách hợp đồng + dòng HĐ đang có trong sổ, và lỗi của lần đọc trước nếu có) để ghép đúng."
         cmd = ["claude", "-p", yeu_cau, "--output-format", "json", "--json-schema", json.dumps(schema or SCHEMA_NEN, ensure_ascii=False),
                "--system-prompt", (huong_dan or HUONG_DAN).format(cty=cty), "--setting-sources", "project", "--tools", "Read",
                "--allowedTools", "Read", "--max-turns", "14", "--no-session-persistence"] + (["--model", model] if model else [])
