@@ -185,7 +185,7 @@ def chuan_hoa(kq, cty=None):
     if kq.get("doi_tac_ten"):                                         # chỉ giữ TÊN: bỏ mọi (…), CCCD/CMND/MST
         kq["doi_tac_ten"] = re.sub(r"\s{2,}", " ", re.sub(r"(?i)\b(CCCD|CMND|MST|Mã số thuế)\b\s*[:.]?\s*[\d\s.-]*", " ", re.sub(r"\([^)]*\)", " ", kq["doi_tac_ten"]))).strip(" -–,;")
     if kq.get("doi_tac_ten"):                                         # bỏ phần người đại diện: "… - Ông Chu Quang Huân, P.TGĐ (ủy quyền…)"
-        kq["doi_tac_ten"] = re.split(r"\s*[-,–]\s*(?:Ông|Bà|Ong|Ba|Giám đốc|Giam doc|Tổng giám đốc|Đại diện|Dai dien|Người đại diện)\b|\s*[\(\[]\s*(?:đại diện|dai dien|ông|bà)|\s*[-,–(]?\s*(?:MST|Mã số thuế)\b", kq["doi_tac_ten"], flags=re.I)[0].strip(" -,–")
+        kq["doi_tac_ten"] = re.split(r"\s*[-,–]\s*(?:Ông|Bà|Ong|Ba|Giám đốc|Giam doc|Tổng giám đốc|Đại diện|Dai dien|Người đại diện)\b|\s*[\(\[]\s*(?:đại diện|dai dien|ông|bà)|\s*[-,–(]?\s*(?:MST|Mã số thuế)\b|\s*[-,–(:]?\s*(?:S[ốo]\s*)?(?:STK|TK|T[àa]i kho[ảa]n)\b\s*[:.]?\s*\d", kq["doi_tac_ten"], flags=re.I)[0].strip(" -,–")
         if la_cty_minh(kq.get("doi_tac_ten"), kw): co.append(dict(muc="CHAN", mo_ta="Đối tác trùng tên công ty mình — không xác định được bên nào là đối tác"))
     for k in PCT:
         v = kq.get(k)

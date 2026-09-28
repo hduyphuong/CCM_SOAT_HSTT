@@ -85,7 +85,7 @@ function theHD(h) {
       ${kv("Giá trị HĐ (trước VAT)", gtHD(h))}${kv("Thực hiện lũy kế", tien(h.thuc_hien))}${h.pct != null ? bar(h.thuc_hien, h.gia_tri, h.pct > 1 ? "er" : "") + kv("% hoàn thành", pc(h.pct), h.pct > 1 ? "neg" : "") : ""}
       ${kv("Tiền thanh toán lũy kế", tien(h.tt_lk))}${kv("Giữ lại đang giữ", tien(h.giu_lai))}${kv("Tạm ứng chưa hoàn", tien(h.tu_con))}${h.khau_tru ? kv("Khấu trừ lũy kế", tien(h.khau_tru)) : ""}
       ${h.gia_tri ? kv("Còn lại theo HĐ", tien(h.con_lai), ng(h.con_lai)) : ""}${dh.han_gl ? kv("Hạn trả giữ lại", esc(String(dh.han_gl).includes("T00") ? dd(dh.han_gl) : dh.han_gl)) : ""}
-      ${h.ho_so_thieu ? `<div class="warn"><b>Hồ sơ còn thiếu</b><br>${esc(h.ho_so_thieu)}</div>` : ""}</div>
+      ${h.ho_so_thieu ? `<div class="warn"><b>Hồ sơ còn thiếu</b><br>${esc(h.ho_so_thieu)}${/TẠM/i.test(h.ho_so_thieu) ? `<div style="margin-top:8px"><button class="btn fix" onclick="boSungHS('${esc(h.ma_hd)}', this)">📎 Bổ sung hồ sơ</button></div>` : ""}</div>` : ""}</div>
     <div class="right"><h4>Các đợt thanh toán</h4><table><tr><th>Đợt</th><th>Ngày HSTT</th><th class="n">Sản lượng kỳ</th><th class="n">Lũy kế</th><th class="n">Tiền TT đợt</th><th>Hạn TT</th></tr>${bills.map(b =>
       `<tr><td>Đợt ${b.dot}</td><td>${dd(b.ngay)}</td><td class="n">${tien(b.san_luong_ky)}</td><td class="n">${tien(b.san_luong_lk)}</td><td class="n"><b>${tien(b.tien_tt)}</b></td><td>${dd(b.han)}</td></tr>`).join("")
       || `<tr><td colspan="6" class="empty">Chưa có đợt thanh toán</td></tr>`}</table>
@@ -281,3 +281,39 @@ async function tongQuan(force) {
   hoatHinh(el);
 }
 const TAB_DAU_RA = {bc: tongQuan, hd: tabHopDong, bill: tabBill, bctc: tabBCTC, dt: tabDoiTac};
+
+// ── BỔ SUNG HỒ SƠ: thay HĐ TẠM bằng HĐ CHÍNH THỨC đã nạp ở Hồ sơ nền (xem trước → anh duyệt → engine ghi, tiền đã trả giữ nguyên) ──
+async function boSungHS(ma, btn) {
+  const w = btn.closest(".warn"); let p = w.querySelector(".bs-pan"); if (p) { p.remove(); return }
+  p = document.createElement("div"); p.className = "bs-pan"; p.style.cssText = "margin-top:10px;background:#fff;border-radius:10px;padding:10px;color:var(--ink,#222)"; w.appendChild(p);
+  p.innerHTML = '<span class="note">Đang tải hồ sơ nền…</span>';
+  try {
+    const ds = (await api("/ho-so-nen?du_an=" + encodeURIComponent($("#da").value))), L = (Array.isArray(ds) ? ds : (ds.ho_so || Object.values(ds))).filter(r => r.loai === "HD_DOI_TAC" && r.ai);
+    if (!L.length) { p.innerHTML = '<span class="note">Chưa có HĐ nào ở <b>Hồ sơ nền</b>. Anh nạp file HĐ chính thức ở tab ③ Hồ sơ nền trước (AI đọc xong), rồi quay lại đây.</span>'; return }
+    p.innerHTML = `<div class="note" style="margin-bottom:6px">Chọn <b>HĐ chính thức</b> (đã nạp ở Hồ sơ nền) để thay HĐ tạm <b>${esc(ma)}</b>:</div>
+      <select class="bs-hd" style="width:100%;padding:6px">${L.map(r => `<option value="${r.id}">${esc(r.ten)} · ${esc((r.ai || {}).doi_tac_ten || "?")} · ${esc((r.ai || {}).so_hd || "")} · ${tien((r.ai || {}).gia_tri_truoc_vat)}</option>`).join("")}</select>
+      <div style="margin-top:8px"><button class="btn bs-xem">🔍 Xem trước</button></div><div class="bs-kq" style="margin-top:8px"></div>`;
+    p.querySelector(".bs-xem").onclick = async () => {
+      const id = p.querySelector(".bs-hd").value, kq = p.querySelector(".bs-kq"); kq.innerHTML = '<span class="note">Đang so…</span>';
+      try {
+        const x = await api("/xem-thay-hd", {du_an: $("#da").value, ma_hd: ma, id}), m = x.moi, KQ = {GHEP: ["ghép", "ok"], PHAT_SINH: ["giữ PHÁT SINH", "wa"], BO: ["bỏ (chưa TT)", ""]};
+        kq.innerHTML = `<table><tr><th></th><th>HĐ tạm (khung)</th><th>HĐ chính thức</th></tr>
+          <tr><td>Số HĐ</td><td>${esc(x.cu.so_hd)}</td><td><b>${esc(m.so_hd)}</b> · ${dd(m.ngay_ky)}</td></tr>
+          <tr><td>Đối tác</td><td>${esc(x.cu.doi_tac)}</td><td>${esc(m.doi_tac)}</td></tr>
+          <tr><td>Giá trị · VAT · TU · TT/đợt</td><td>thực hiện ${tien(x.cu.thuc_hien)}</td><td>${tien(m.gia_tri)} · ${pc(m.vat)} · ${pc(m.pct_tu)} · ${pc(m.pct_tt)} · ${m.so_dong} dòng</td></tr></table>
+          <h4 style="margin:10px 0 4px">Ghép dòng HĐ tạm → HĐ thật (${x.so_ghep}/${x.dong.length})</h4><table><tr><th>STT tạm</th><th>Nội dung tạm</th><th class="n">ĐG</th><th class="n">KL đã TT</th><th>→ STT thật</th><th>Nội dung thật</th><th></th></tr>
+          ${x.dong.map(r => `<tr><td>${esc(r.cu_stt)}</td><td>${esc(r.cu_nd)}</td><td class="n">${tien(r.cu_dg)}</td><td class="n">${fmt(r.kl_lk)}</td><td>${esc(r.moi_stt || "—")}</td><td>${esc(r.moi_nd || "")}</td><td><span class="chip ${KQ[r.kq][1]}">${KQ[r.kq][0]}</span></td></tr>`).join("")}</table>
+          ${x.canh_bao.map(c => `<div class="warn" style="margin-top:6px">${esc(c)}</div>`).join("")}
+          ${x.trung ? `<label style="display:block;margin-top:8px"><input type="checkbox" class="bs-xoa" ${x.trung.co_thanh_toan ? "disabled" : ""}> Xoá HĐ TRÙNG <b>${esc(x.trung.ma_hd)}</b> (đối tác ${esc(x.trung.ma_doi_tac)}) — HĐ chính thức này đã lỡ nạp thành đối tác khác${x.trung.co_thanh_toan ? " · <b>ĐÃ có thanh toán, không xoá được</b>" : ", chưa có thanh toán"}</label>` : ""}
+          <div style="margin-top:10px"><button class="btn ok bs-thay">🔄 Thay HĐ tạm bằng HĐ này</button> <span class="note">Tiền đã thanh toán giữ nguyên — engine tự kiểm lũy kế trước = sau, lệch thì không lưu.</span></div><div class="res bs-res"></div>`;
+        kq.querySelector(".bs-thay").onclick = async (ev) => {
+          const xoa = kq.querySelector(".bs-xoa") && kq.querySelector(".bs-xoa").checked ? x.trung.ma_hd : null;
+          if (!confirm(`Thay HĐ tạm ${ma} bằng HĐ ${m.so_hd}?` + (xoa ? `\nVÀ XOÁ HĐ trùng ${xoa}.` : ""))) return;
+          const b = ev.target, res = kq.querySelector(".bs-res"); b.disabled = true; b.textContent = "Đang ghi…";
+          try { const r = await api("/thay-hd-tam", {du_an: $("#da").value, ma_hd: ma, id, xoa_trung: xoa}); res.className = "res " + (r.ok ? "ok" : "er") + " bs-res"; res.textContent = r.ok ? r.thong_bao : r.ly_do; if (!r.ok) { b.disabled = false; b.textContent = "🔄 Thay HĐ tạm bằng HĐ này" } }
+          catch (e) { res.className = "res er bs-res"; res.textContent = e.message; b.disabled = false; b.textContent = "🔄 Thay HĐ tạm bằng HĐ này" }
+        };
+      } catch (e) { kq.innerHTML = `<span class="res er">${esc(e.message)}</span>` }
+    };
+  } catch (e) { p.innerHTML = `<span class="res er">${esc(e.message)}</span>` }
+}

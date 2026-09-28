@@ -300,6 +300,13 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/nhap-khung": return self._tra(200, xu_ly_nhap_khung(b))
             if self.path == "/hd-tam": return self._tra(200, xu_ly_hd_tam(b))
             if self.path == "/doc-scan": return self._tra(200, xu_ly_doc_scan(b))
+            if self.path == "/xem-thay-hd":
+                cfg = du_an()[b["du_an"]]; return self._tra(200, NK.xem_thay_hd(K.doc_khung(cfg["khung"]), b["ma_hd"], NEN.doc_so(DATA, b["du_an"])[b["id"]]))
+            if self.path == "/thay-hd-tam":
+                cfg = du_an()[b["du_an"]]; rn = NEN.doc_so(DATA, b["du_an"])[b["id"]]
+                with KHOA: kq = NK.thay_hd_tam(cfg["khung"], b["ma_hd"], rn, os.path.join(os.path.dirname(cfg["khung"]), "_backup"), b.get("xoa_trung"))
+                if kq["ok"]: NEN.sua_rec(DATA, b["du_an"], b["id"], thay_hd_tam=dict(ma_hd=b["ma_hd"], luc=dt.datetime.now().isoformat(timespec="seconds")))
+                return self._tra(200, kq)
             if self.path == "/doc-lai": return self._tra(200, NEN.doc_lai(DATA, b["du_an"], b["id"]))
             self._tra(404, dict(loi="không có đường dẫn này"))
         except Exception as e: traceback.print_exc(); self._tra(500, dict(loi=str(e)))
