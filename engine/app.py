@@ -57,6 +57,12 @@ def luu_so(da, s):
                  **({"dinh_kem": [dict(x, file=tuong_doi(x["file"])) for x in v["dinh_kem"]]} if v.get("dinh_kem") else {})) for k, v in s.items()}
     json.dump(s, open(so_nap_path(da), "w", encoding="utf-8"), ensure_ascii=False, indent=1, default=_json)
 
+SO_KHOA = threading.Lock()                                          # khoá RIÊNG cho sổ nạp (KHOA giữ lâu lúc ghi Excel)
+def ghi_rec(da, i, rec):
+    """Ghi 1 bản ghi vào sổ nạp: ĐỌC LẠI sổ mới nhất ngay trước khi ghi — không đè mất bản ghi do việc khác vừa thêm
+    (sự cố 28/09: duyệt hồ sơ A ghi lại sổ cũ ⇒ mất bản ghi Đợt 2 Văn Ngọc Sương vừa nạp ⇒ KeyError khi duyệt)."""
+    with SO_KHOA:
+        s = so_nap(da); s[i] = rec; luu_so(da, s); return s
 def xu_ly_nap(b):
     da, ten = b["du_an"], os.path.basename(b["ten"])
     if not ten.lower().endswith((".xlsx", ".xlsm")):              # PDF / Word / ảnh: chưa có luồng đọc ⇒ báo rõ, KHÔNG lưu file mồ côi
@@ -91,7 +97,7 @@ def xu_ly_nap(b):
                lich_su=((cu_rec or {}).get("lich_su") or []) + ([dict(trang_thai=cu_rec["trang_thai"], ly_do=cu_rec.get("ly_do"), luc=cu_rec.get("luc_duyet") or cu_rec.get("luc"))]
                                                         if cu_rec and cu_rec["trang_thai"] != "CHO_DUYET" else []))
     if cu_rec and cu_rec.get("hd_tam"): rec["hd_tam"] = cu_rec["hd_tam"]
-    s[i] = rec; luu_so(da, s)
+    s = ghi_rec(da, i, rec)
     return rec
 
 def xu_ly_duyet(b):
@@ -132,7 +138,7 @@ def xu_ly_duyet(b):
             except Exception as e: rec["luu_tru_loi"] = str(e)
     else:
         rec["trang_thai"] = hd; rec["ly_do"] = b.get("ly_do") or ""
-    rec["luc_duyet"] = dt.datetime.now().isoformat(timespec="seconds"); s[i] = rec; luu_so(da, s)
+    rec["luc_duyet"] = dt.datetime.now().isoformat(timespec="seconds"); s = ghi_rec(da, i, rec)
     if rec["trang_thai"] == "DA_GHI_SO":       # lũy kế trong khung vừa đổi ⇒ SOÁT LẠI các HSTT đang chờ duyệt cùng HĐ (kỳ trước đợt sau phải = lũy kế đợt vừa ghi)
         ma = (rec.get("phan_loai") or {}).get("ma_hd")
         for k_, v in list(s.items()):
@@ -199,7 +205,7 @@ def _soat_scan(da, i):
     cu = {v["van_tay"] for k_, v in s.items() if k_ != i and v["trang_thai"] != "TRA_DOI"}
     kq = K.kiem(hs, k, cu); kh = G.ke_hoach(hs, kq, k) if kq["phan_loai"]["ma_hd"] else None
     rec.update(trang_thai="CHO_DUYET", phan_loai=kq["phan_loai"], tom_tat=kq["tom_tat"], co=kq["co"], ke_hoach=kh)
-    s[i] = rec; luu_so(da, s); return rec
+    s = ghi_rec(da, i, rec); return rec
 
 AI_CHAY = set()                                                     # (dự án, id) đang có luồng AI đọc THẬT
 def _chay_ai_scan(da, i):
@@ -227,7 +233,7 @@ def xu_ly_doc_scan(b):
         if cu and cu["trang_thai"] == "DANG_DOC_AI" and (da, i) in AI_CHAY: return cu      # đang đọc thật ⇒ chờ · kẹt (engine từng tắt giữa chừng) ⇒ đọc lại
         rec = dict(id=i, van_tay=vt, ten=ten, file=dich, luc=dt.datetime.now().isoformat(timespec="seconds"), mau="SCAN_AI", trang_thai="DANG_DOC_AI",
                    phan_loai={}, tom_tat={}, co=[], ke_hoach=None, ly_do=None, ket_qua=None)
-        s[i] = rec; luu_so(da, s)
+        s = ghi_rec(da, i, rec)
     threading.Thread(target=_chay_ai_scan, args=(da, i), daemon=True).start()
     return rec
 
