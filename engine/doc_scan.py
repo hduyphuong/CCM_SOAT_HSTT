@@ -18,7 +18,7 @@ HUONG_DAN = """Bạn là QS/CCM người Việt, đọc BẢN SCAN hồ sơ than
 'don_vi' = đơn vị ĐỀ NGHỊ được thanh toán (đội / thầu phụ / NCC), KHÔNG phải {cty}. 'du_an' = tên dự án/công trình ghi trên hồ sơ — hồ sơ KHÔNG ghi thì để null.
 'loai_ho_so': TAM_UNG nếu chỉ là giấy đề nghị tạm ứng (không có khối lượng thực hiện kỳ này); THANH_TOAN nếu có bảng khối lượng / giá trị thực hiện; QUYET_TOAN nếu là hồ sơ quyết toán.
 Tiền = số VND (không dấu phân cách); % = thập phân (8% → 0.08); ngày = YYYY-MM-DD (ngày lập / ký hồ sơ). Tổng kỳ trước / kỳ này / lũy kế = giá trị TRƯỚC VAT.
-'bang' = từng dòng công việc của bảng khối lượng / giá trị (KHÔNG đưa dòng tiêu đề nhóm, dòng cộng, dòng tổng); KL và thành tiền kỳ trước / kỳ này / lũy kế đọc ĐÚNG CỘT; mỗi dòng ghi 'trang'.
+'bang' = từng dòng công việc của BẢNG GIÁ TRỊ THANH TOÁN (có đơn giá + thành tiền) — KHÔNG lấy bảng diễn giải / chi tiết khối lượng, KHÔNG đưa dòng tiêu đề nhóm, dòng cộng, dòng tổng; KL và thành tiền kỳ trước / kỳ này / lũy kế đọc ĐÚNG CỘT; mỗi dòng ghi 'trang'.
 'nguon' = trang lấy từng số tổng (khoá = tên trường). Số nào mờ / bị che / không đọc rõ ⇒ để null VÀ thêm TÊN TRƯỜNG (vd 'ngay', 'tong_ky_nay') vào 'khong_chac'; giải thích để ở 'ghi_chu'. TUYỆT ĐỐI KHÔNG ĐOÁN, KHÔNG TỰ TÍNH BÙ số."""
 TIEN = ("tong_ky_truoc", "tong_ky_nay", "tong_luy_ke", "tam_ung_de_nghi", "thu_hoi_tam_ung_ky_nay", "giu_lai_ky_nay", "de_nghi_thanh_toan", "dot", "vat_pct")
 NGUONG = 10
@@ -38,6 +38,7 @@ def dung_hs(ai, path):
         if loai == "TAM_UNG": break                                      # tạm ứng: bảng KL đi kèm chỉ là SƠ BỘ ⇒ không ghi thực hiện
         nd_ = na(x.get("noi_dung")).strip()
         if nd_.startswith(("TONG", "CONG")) or (not x.get("dvt") and not _n(x.get("kl_ky_nay")) and not _n(x.get("kl_luy_ke"))): continue   # dòng nhóm / dòng cộng
+        if not _n(x.get("don_gia")) and not any(_n(x.get(f)) for f in ("tt_ky_truoc", "tt_ky_nay", "tt_luy_ke")): continue    # dòng DIỄN GIẢI KL (không giá, không tiền)
         kt, kn = _n(x.get("kl_ky_truoc")), _n(x.get("kl_ky_nay"))
         lk = _n(x["kl_luy_ke"]) if isinstance(x.get("kl_luy_ke"), (int, float)) else kt + kn
         tk, tn = _n(x.get("tt_ky_truoc")), _n(x.get("tt_ky_nay"))
@@ -76,3 +77,34 @@ def chuan_bi(hs, k):
     ma = K.phan_loai(hs, k)[0].get("ma_hd")
     if ma: hs["du_tru"] = k["tu_treo"][ma] + hs.get("tam_ung_moi", 0.0) - hs.get("thu_hoi", 0.0)
     if ma and hs.get("loai_ai") == "TAM_UNG": hs["tong"] = (k["lk_tien"][ma], 0.0, k["lk_tien"][ma])   # tạm ứng: lũy kế thực hiện KHÔNG đổi
+    if ma and hs["lines"] and not hs.get("da_ghep"): ghep_dong_hd(hs, k["dong"].get(ma, []))
+    nk, ng = (k["hd"].get(ma) or {}).get("ngay_ky") if ma else None, hs["cover"].get("ngay")
+    if ng and hasattr(nk, "year") and ng < (nk.date() if hasattr(nk, "date") else nk) and not hs.get("da_kiem_ngay"):   # vd hồ sơ gõ nhầm NĂM (2025 thay 2026)
+        hs["da_kiem_ngay"] = True
+        hs["kiem_rieng"].append(("CHAN", "Hồ sơ", hs["cover"]["o"].get("so_hd", "PDF"), ng.isoformat(), f"{nk:%d/%m/%Y}", "Ngày hồ sơ TRƯỚC ngày ký HĐ — nhiều khả năng gõ nhầm năm; anh xác nhận ngày đúng rồi đọc lại"))
+
+def _dvt(s): return na(str(s or "").replace("²", "2").replace("³", "3")).replace(" ", "").replace(".", "")
+def _tu(s): return {w for w in na(s).replace("-", " ").replace(",", " ").replace("(", " ").replace(")", " ").split() if len(w) >= 2}
+
+def ghep_dong_hd(hs, ds_dong):
+    """GHÉP dòng AI đọc từ scan ⇒ dòng HĐ (N7) bằng CODE, không nhờ AI: cùng ĐƠN GIÁ (±0,5đ) + ĐVT; nhiều dòng HĐ cùng giá ⇒ chọn dòng TRÙNG CHỮ tên nhiều nhất
+    (phải trội hẳn). Các dòng scan cùng 1 dòng HĐ (nhiều căn/tầng) ⇒ CỘNG GỘP, lấy đúng tên/ĐVT/ĐG của HĐ ⇒ soát lũy kế như HSTT Excel.
+    Không ghép được (sai giá, không có trong HĐ) ⇒ giữ nguyên ⇒ kiem.py CHẶN."""
+    gop, le, ghep = {}, [], 0
+    for l in hs["lines"]:
+        c = [d for d in ds_dong if d["don_gia"] and abs(d["don_gia"] - l["dg"]) <= 0.5]
+        c2 = [d for d in c if _dvt(d["dvt"]) == _dvt(l["dvt"])] or c
+        if len(c2) > 1:
+            diem = sorted(((len(_tu(d["noi_dung"]) & _tu(l["ds"])), i) for i, d in enumerate(c2)), reverse=True)
+            c2 = [c2[diem[0][1]]] if diem[0][0] >= 1 and (len(diem) == 1 or diem[0][0] > diem[1][0]) else []
+        if len(c2) != 1: le.append(l); continue
+        d = c2[0]; g = gop.get(str(d["stt"]))
+        if g is None:
+            gop[str(d["stt"])] = dict(l, stt=str(d["stt"]), ds=d["noi_dung"], dvt=d["dvt"], dg=d["don_gia"], dong=l["dong"], n=1); ghep += 1; continue
+        for f in ("kl_kt", "kl_kn", "kl_lk", "tt_kt", "tt_kn", "tt_lk"): g[f] += l[f]
+        g["n"] += 1; ghep += 1
+    for g in gop.values():
+        if g["n"] > 1: g["dong"] = f"{g['dong']} (+{g['n'] - 1} dòng)"
+    hs["lines"] = list(gop.values()) + le; hs["da_ghep"] = True
+    hs["kiem_rieng"].append(("LUU_Y", "Theo HĐ", "PDF", f"{ghep} dòng scan", f"{len(gop)} dòng HĐ",
+                             f"Đã GHÉP {ghep} dòng đọc từ scan vào {len(gop)} dòng HĐ theo ĐƠN GIÁ + ĐVT (+ tên)" + (f" · {len(le)} dòng KHÔNG ghép được" if le else "")))

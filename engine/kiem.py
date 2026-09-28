@@ -30,7 +30,7 @@ def doc_khung(path):
     for r in range(2, w.max_row + 1):
         m = w[f"A{r}"].value
         if not m: continue
-        rec = k["hd"].setdefault(m, dict(ma_hd=m, ma_doi_tac=w[f"C{r}"].value, ma_goi=w[f"D{r}"].value, so_hd=str(w[f"E{r}"].value or ""),
+        rec = k["hd"].setdefault(m, dict(ma_hd=m, ma_doi_tac=w[f"C{r}"].value, ma_goi=w[f"D{r}"].value, so_hd=str(w[f"E{r}"].value or ""), ngay_ky=w[f"F{r}"].value,
                                          gia_tri=0.0, vat=num(w[f"J{r}"].value), pct_tu=num(w[f"K{r}"].value), pct_tt_dot=w[f"L{r}"].value))
         rec["gia_tri"] += num(w[f"I{r}"].value)
     w = wb["N7_HD_DoiTac_ChiTiet"]
