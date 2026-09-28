@@ -154,16 +154,16 @@ async function tabBCTC() {
   const S = (ds, k) => ds.reduce((a, x) => a + (typeof x[k] === "number" ? x[k] : 0), 0);
   const cot = [{t: "Tên hạng mục", k: "ten"}, {t: "Mã NS", k: "ma_ns"}, {t: "Nhóm", k: "nhom"}, {t: "Đối tác liên kết", csv: x => x.hop_dong.map(h => h.doi_tac).join("; ")},
     {t: "Doanh thu phân bổ", k: "dt_pb"}, {t: "NS hiện hành", k: "ns"}, {t: "GT HĐ đã ký", k: "cam_ket"}, {t: "Đã thực hiện", k: "thuc_hien"},
-    {t: "Còn lại NS", csv: x => x.ns - x.thuc_hien}, {t: "Chi phí còn lại", k: "con_lai"}, {t: "EAC", k: "eac"}, {t: "NS − EAC", k: "ns_tru_eac"}, {t: "LN dự kiến", k: "ln_dk"}, {t: "Cảnh báo", k: "canh_bao"}];
+    {t: "Còn lại NS", csv: x => x.ns - x.thuc_hien}, {t: "ETC — chi phí còn lại (dự báo)", k: "con_lai"}, {t: "Phương pháp ETC", k: "cach"}, {t: "EAC", k: "eac"}, {t: "NS − EAC", k: "ns_tru_eac"}, {t: "LN dự kiến", k: "ln_dk"}, {t: "Cảnh báo", k: "canh_bao"}];
   const ve = () => {
     const q = (el.querySelector(".tim").value || "").toLowerCase();
     const ok = x => !q || [x.ten, x.ma_ns, ...x.hop_dong.map(h => h.doi_tac), ...x.hop_dong.map(h => h.so_hd)].some(s => String(s ?? "").toLowerCase().includes(q));
     const dong = (x, lv) => `<tr class="${lv}"><td>${lv === "l2" ? `${esc(x.ten)}<div class="note">${esc(x.ma_ns)}</div>` : x.ten}${x.canh_bao ? `<div><span class="chip er">${esc(x.canh_bao)}</span></div>` : ""}</td>
       <td>${x.hop_dong ? lienKet(x.hop_dong) : ""}</td>
       <td class="n">${tien(x.dt_pb)}</td><td class="n">${tien(x.ns)}</td><td class="n">${tien(x.cam_ket)}</td><td class="n">${tien(x.thuc_hien)}</td>
-      <td class="n ${ng(x.ns - x.thuc_hien)}">${typeof x.ns === "number" ? tien(x.ns - x.thuc_hien) : "—"}</td><td class="n">${tien(x.eac)}${Math.abs(x.ns_tru_eac || 0) >= 1 ? `<div class="note ${ng(x.ns_tru_eac)}">NS−EAC ${tien(x.ns_tru_eac)}</div>` : ""}</td><td class="n ${ng(x.ln_dk)}">${tien(x.ln_dk)}</td></tr>`;
+      <td class="n">${tien(x.con_lai)}${x.cach ? `<div class="note">${esc(PP_ETC[x.cach] || x.cach)}</div>` : ""}</td><td class="n">${tien(x.eac)}${Math.abs(x.ns_tru_eac || 0) >= 1 ? `<div class="note ${ng(x.ns_tru_eac)}">NS−EAC ${tien(x.ns_tru_eac)}</div>` : ""}</td><td class="n ${ng(x.ln_dk)}">${tien(x.ln_dk)}</td></tr>`;
     let h = `<thead><tr><th>Tên hạng mục</th><th>Hợp đồng liên kết</th><th class="n">Doanh thu phân bổ</th><th class="n">Phân bổ dự trù (NS)</th><th class="n">GT HĐ đã ký</th>
-      <th class="n">Đã thực hiện</th><th class="n">Còn lại NS</th><th class="n">EAC</th><th class="n">LN dự kiến</th></tr></thead><tbody>
+      <th class="n">AC — đã thực hiện</th><th class="n">ETC — dự báo còn lại</th><th class="n">EAC = AC + ETC</th><th class="n">LN dự kiến</th></tr></thead><tbody>
       <tr class="l0 hA"><td colspan="9">HÀNG A — DOANH THU (trước VAT)</td></tr>
       <tr class="l2"><td>Hợp đồng với CĐT — bản gốc<div class="note">R1 mục 1</div></td><td>${esc((d.hop_dong.find(x => x.ben === "CĐT") || {}).so_hd || "")}</td><td class="n">${tien(CV("1"))}</td><td colspan="6"></td></tr>
       <tr class="l2"><td>Phụ lục / phát sinh với CĐT<div class="note">R1 mục 2</div></td><td></td><td class="n">${tien(CV("2"))}</td><td colspan="6"></td></tr>
@@ -171,7 +171,7 @@ async function tabBCTC() {
       <tr class="l0 hB"><td colspan="9">HÀNG B — CHI PHÍ (theo mã ngân sách)</td></tr>`;
     for (const nh of Object.keys(NHOM)) {
       const all = d.ns.filter(x => x.nhom === nh), hs = all.filter(ok); if (!hs.length) continue;
-      h += dong({ten: `${nh} — ${NHOM[nh]}`, dt_pb: S(all, "dt_pb"), ns: S(all, "ns"), cam_ket: S(all, "cam_ket"), thuc_hien: S(all, "thuc_hien"), eac: S(all, "eac"), ns_tru_eac: S(all, "ns_tru_eac"), ln_dk: S(all, "ln_dk")}, "l1");
+      h += dong({ten: `${nh} — ${NHOM[nh]}`, dt_pb: S(all, "dt_pb"), ns: S(all, "ns"), cam_ket: S(all, "cam_ket"), thuc_hien: S(all, "thuc_hien"), con_lai: S(all, "con_lai"), eac: S(all, "eac"), ns_tru_eac: S(all, "ns_tru_eac"), ln_dk: S(all, "ln_dk")}, "l1");
       h += hs.map(x => dong(x, "l2")).join("");
     }
     const B = {ten: "Cộng chi phí (Hàng B)", dt_pb: S(d.ns, "dt_pb"), ns: S(d.ns, "ns"), cam_ket: S(d.ns, "cam_ket"), thuc_hien: S(d.ns, "thuc_hien"), eac: S(d.ns, "eac"), ns_tru_eac: S(d.ns, "ns_tru_eac"), ln_dk: S(d.ns, "ln_dk")};
@@ -317,3 +317,5 @@ async function boSungHS(ma, btn) {
     };
   } catch (e) { p.innerHTML = `<span class="res er">${esc(e.message)}</span>` }
 }
+
+const PP_ETC = {KL: "theo KL còn lại × ĐG", TG: "theo thời gian còn lại", NS: "theo NS còn lại", VT: "theo % hoàn thành"};   // R2 cột J — anh chốt EAC v2 28/09
