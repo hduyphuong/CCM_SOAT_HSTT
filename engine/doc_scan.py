@@ -1,7 +1,7 @@
 """HSTT BẢN SCAN / PDF KÝ — AI đọc (Claude Code, gói Pro của người dùng) ⇒ dựng hồ sơ CHUẨN như bộ đọc Excel ⇒ cùng 4 lớp kiểm của engine.
 Chống đọc nhầm: số tiền AI 'không chắc' ⇒ CHẶN · bất biến số học (Σ dòng = tổng · KL×ĐG · KT+KN=LK) do kiem.py + ở đây soát ·
 luôn có lưu ý 'số do AI đọc từ scan'. Kết quả AI lưu trong sổ nạp ⇒ soát lại / ghi sổ KHÔNG gọi AI lần 2."""
-import datetime as dt, ai_doc
+import datetime as dt, re, ai_doc
 from doc_hstt import na
 S, I, N, B = ai_doc.S, ai_doc.I, ai_doc.N, ai_doc.B
 DONG = {"type": "object", "properties": {"stt": S, "noi_dung": S, "dvt": S, "don_gia": N, "kl_ky_truoc": N, "kl_ky_nay": N, "kl_luy_ke": N,
@@ -37,7 +37,7 @@ def dung_hs(ai, path):
     for i, x in enumerate(ai.get("bang") or [], 1):
         if loai == "TAM_UNG": break                                      # tạm ứng: bảng KL đi kèm chỉ là SƠ BỘ ⇒ không ghi thực hiện
         nd_ = na(x.get("noi_dung")).strip()
-        if nd_.startswith(("TONG", "CONG")) or (not x.get("dvt") and not _n(x.get("kl_ky_nay")) and not _n(x.get("kl_luy_ke"))): continue   # dòng nhóm / dòng cộng
+        if re.match(r"^\s*(tổng|cộng)\b", str(x.get("noi_dung") or ""), re.I) or (not x.get("dvt") and not _n(x.get("kl_ky_nay")) and not _n(x.get("kl_luy_ke"))): continue   # dòng nhóm / dòng cộng
         if not _n(x.get("don_gia")) and not any(_n(x.get(f)) for f in ("tt_ky_truoc", "tt_ky_nay", "tt_luy_ke")): continue    # dòng DIỄN GIẢI KL (không giá, không tiền)
         kt, kn = _n(x.get("kl_ky_truoc")), _n(x.get("kl_ky_nay"))
         lk = _n(x["kl_luy_ke"]) if isinstance(x.get("kl_luy_ke"), (int, float)) else kt + kn
@@ -46,6 +46,7 @@ def dung_hs(ai, path):
         lines.append(dict(dong=f"tr.{x.get('trang') or '?'} #{i}", khung="", stt=str(x.get("stt") or i), ds=str(x.get("noi_dung") or "").strip(),
                           dvt=str(x.get("dvt") or "").strip(), kl_hd=None, dg=_n(x.get("don_gia")), kl_kt=kt, kl_kn=kn, kl_lk=lk,
                           tt_kt=tk, tt_kn=tn, tt_lk=tl, ngoai=False))
+    kt_tu_khung = bool(lines) and all(x.get("kl_ky_truoc") is None for x in (ai.get("bang") or []) if x.get("dvt"))
     sm = lambda k: sum(l[k] for l in lines)
     t = tuple(_n(ai[f]) if isinstance(ai.get(f), (int, float)) else sm(k) for f, k in (("tong_ky_truoc", "tt_kt"), ("tong_ky_nay", "tt_kn"), ("tong_luy_ke", "tt_lk")))
     if loai == "TAM_UNG": t = (0.0, 0.0, 0.0)                              # tạm ứng không phát sinh thực hiện ⇒ lũy kế lấy từ khung ở chuan_bi()
@@ -69,7 +70,7 @@ def dung_hs(ai, path):
     cv = dict(ten_don_vi=ai.get("don_vi"), so_hd=ai.get("so_hd"), dot=ai.get("dot"), ngay=ngay, o={"so_hd": o("so_hd"), "dot": o("dot"), "ten_don_vi": o("don_vi")})
     return dict(file=path, sheet="PDF", cover=cv, lines=lines, tong=t, vat=ai.get("vat_pct"), tu=0.0, hu=0.0, tu_k=0.0, hu_k=-thu_hoi,
                 gl=-giu_lai if giu_lai else None, du_tru=0.0, du_an_text="" if not ai.get("du_an") or any(x in na(ai["du_an"]) for x in ("KHONG GHI", "KHONG NEU", "KHONG CO")) else na(ai["du_an"]),
-                mau="SCAN_AI", kiem_rieng=kr, tam_ung_moi=_n(ai.get("tam_ung_de_nghi")), thu_hoi=thu_hoi, loai_ai=loai)
+                mau="SCAN_AI", kiem_rieng=kr, kt_tu_khung=kt_tu_khung, tam_ung_moi=_n(ai.get("tam_ung_de_nghi")), thu_hoi=thu_hoi, loai_ai=loai)
 
 def chuan_bi(hs, k):
     """Tạm ứng còn treo SAU hồ sơ này = treo trong khung + tạm ứng mới − thu hồi ⇒ để kiem/ke_hoach nhận đúng loại (TAM_UNG / THANH_TOAN)."""
@@ -78,6 +79,13 @@ def chuan_bi(hs, k):
     if ma: hs["du_tru"] = k["tu_treo"][ma] + hs.get("tam_ung_moi", 0.0) - hs.get("thu_hoi", 0.0)
     if ma and hs.get("loai_ai") == "TAM_UNG": hs["tong"] = (k["lk_tien"][ma], 0.0, k["lk_tien"][ma])   # tạm ứng: lũy kế thực hiện KHÔNG đổi
     if ma and hs["lines"] and not hs.get("da_ghep"): ghep_dong_hd(hs, k["dong"].get(ma, []))
+    if ma and hs.get("kt_tu_khung") and not hs.get("da_kt_khung"):    # scan không ghi kỳ trước từng dòng (vd công nhật theo ngày) ⇒ kỳ trước = lũy kế đã ghi sổ
+        hs["da_kt_khung"] = True
+        for l in hs["lines"]:
+            if any(str(d["stt"]) == l["stt"] for d in k["dong"].get(ma, [])):
+                l["kl_kt"] = k["lk_kl"].get((ma, l["stt"]), 0.0); l["tt_kt"] = k["lk_tien_dong"].get((ma, l["stt"]), 0.0)
+                l["kl_lk"] = l["kl_kt"] + l["kl_kn"]; l["tt_lk"] = l["tt_kt"] + l["tt_kn"]
+        hs["kiem_rieng"].append(("LUU_Y", "Đợt trước", "PDF", "—", "khung", "Bản scan không ghi kỳ trước từng dòng ⇒ kỳ trước từng dòng lấy theo lũy kế đã ghi sổ (tổng kỳ trước vẫn đối chiếu với hồ sơ)"))
     nk, ng = (k["hd"].get(ma) or {}).get("ngay_ky") if ma else None, hs["cover"].get("ngay")
     if ng and hasattr(nk, "year") and ng < (nk.date() if hasattr(nk, "date") else nk) and not hs.get("da_kiem_ngay"):   # vd hồ sơ gõ nhầm NĂM (2025 thay 2026)
         hs["da_kiem_ngay"] = True
