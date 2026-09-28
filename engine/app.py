@@ -236,7 +236,7 @@ def xu_ly_hd_tam(b):
     da, i = b["du_an"], b["id"]; cfg = du_an()[da]; ly_do = LY_DO_TAM.get(b.get("ly_do"), b.get("ly_do") or "Khác"); loai_dt = b.get("loai_dt") or "DTC"
     with KHOA:
         rec = so_nap(da)[i]; hs = _doc_rec(rec); cv = hs["cover"]
-        ten = _re.sub(r"\s{2,}", " ", _re.sub(r"\([^)]*\)", " ", str(cv.get("ten_don_vi") or ""))).strip(" -–,;")
+        ten = _re.sub(r"\s{2,}", " ", _re.sub(r"\([^)]*\)", " ", str(cv.get("ten_don_vi") or ""))).strip(" -–,;"); ten = NEN.ten_chuan(ten)
         if not ten: raise ValueError("HSTT không ghi tên đơn vị — không tạo được HĐ tạm")
         dm = NEN.danh_muc(cfg["khung"]); d = NEN.khop_doi_tac(ten, dm["doi_tac"]); ma = d["ma"] if d else NEN.ma_de_xuat(ten)
         if hs.get("mau") == "HOAN_UNG_BCH": ma, loai_dt, ly_do = (d["ma"] if d else "BCH"), "DVK", LY_DO_TAM["HOAN_UNG_BCH"]   # quỹ BCH: 1 đối tác nội bộ cố định

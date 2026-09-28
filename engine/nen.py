@@ -159,6 +159,13 @@ def tu_khoa_cty(cty):
     goc = str(cty or "").split("(")[0].strip()
     return [khong_dau(goc).upper()] if goc and not goc.startswith("(chưa") else []
 def la_cty_minh(ten, kw): t = khong_dau(ten).upper(); return any(k and re.search(r"\b" + re.escape(k) + r"\b", t) for k in kw)
+TIEN_TO_DOI = re.compile(r"^\s*(?:tổ\s+đội(?:\s+thi\s+công)?|đội\s+thi\s+công|đội|tổ)\s+", re.I)
+def ten_chuan(s):
+    """Tên đối tác CHUẨN (anh chốt 28/09): bỏ tiền tố 'Tổ đội / Đội thi công…' (chỉ giữ tên người) · VIẾT HOA toàn bộ cho đồng bộ."""
+    t = re.sub(r"\s{2,}", " ", str(s or "")).strip(" -–,;")
+    for _ in range(2): t = TIEN_TO_DOI.sub("", t)
+    return t.upper()
+
 def chuan_hoa(kq, cty=None):
     """KHÔNG tin AI về định dạng / phân loại: % dạng 90 ⇒ 0.9 (ngoài 0..1 ⇒ CHẶN); công ty mình là BÊN NHẬN ⇒ HĐ phía CĐT, đối tác = bên giao;
     đối tác trùng công ty mình ⇒ CHẶN; tổ đội / giao khoán ⇒ DTC. Trả danh sách cờ."""
@@ -186,6 +193,7 @@ def chuan_hoa(kq, cty=None):
         kq["doi_tac_ten"] = re.sub(r"\s{2,}", " ", re.sub(r"(?i)\b(CCCD|CMND|MST|Mã số thuế)\b\s*[:.]?\s*[\d\s.-]*", " ", re.sub(r"\([^)]*\)", " ", kq["doi_tac_ten"]))).strip(" -–,;")
     if kq.get("doi_tac_ten"):                                         # bỏ phần người đại diện: "… - Ông Chu Quang Huân, P.TGĐ (ủy quyền…)"
         kq["doi_tac_ten"] = re.split(r"\s*[-,–]\s*(?:Ông|Bà|Ong|Ba|Giám đốc|Giam doc|Tổng giám đốc|Đại diện|Dai dien|Người đại diện)\b|\s*[\(\[]\s*(?:đại diện|dai dien|ông|bà)|\s*[-,–(]?\s*(?:MST|Mã số thuế)\b|\s*[-,–(:]?\s*(?:S[ốo]\s*)?(?:STK|TK|T[àa]i kho[ảa]n)\b\s*[:.]?\s*\d", kq["doi_tac_ten"], flags=re.I)[0].strip(" -,–")
+        kq["doi_tac_ten"] = ten_chuan(kq["doi_tac_ten"])
         if la_cty_minh(kq.get("doi_tac_ten"), kw): co.append(dict(muc="CHAN", mo_ta="Đối tác trùng tên công ty mình — không xác định được bên nào là đối tác"))
     for k in PCT:
         v = kq.get(k)
