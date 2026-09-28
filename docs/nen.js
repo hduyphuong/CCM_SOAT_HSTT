@@ -35,7 +35,7 @@ async function tabNen() {
   const dz = $("#n-drop"); dz.onclick = () => $("#n-f").click();
   $("#n-f").onchange = e => { napNen([...e.target.files]); e.target.value = "" };
   dz.ondragover = e => { e.preventDefault(); dz.classList.add("hot") }; dz.ondragleave = () => dz.classList.remove("hot");
-  dz.ondrop = e => { e.preventDefault(); dz.classList.remove("hot"); napNen([...e.dataTransfer.files]) };
+  dz.ondrop = async e => { e.preventDefault(); dz.classList.remove("hot"); napNen((await layFile(e.dataTransfer, /\.(pdf|xlsx|xlsm|xls|doc|docx|jpe?g|png)$/i)).files) };   // nhận cả THƯ MỤC
   soNen();
 }
 async function napNen(files) {

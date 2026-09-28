@@ -271,7 +271,7 @@ table.bctc tr.l1 td{background:#f5f3fa!important}table.bctc tr.tong td{backgroun
 <main>
   <section id="t-nap">
     <div class="drop" id="drop"><b>Kéo thả hồ sơ thanh toán vào đây</b> — Excel (.xlsx) để soát &amp; ghi sổ, kèm PDF bản ký — đội, thầu phụ, NCC hoặc CĐT — nhiều file một lần<br>
-      <span class="note">File chỉ đi qua trang tới engine trên máy anh; không lưu lên mạng.</span><input type="file" id="f" multiple accept=".xlsx,.xlsm,.pdf" hidden></div>
+      <span class="note">File chỉ đi qua trang tới engine trên máy anh; không lưu lên mạng. <b>Kéo thả được cả THƯ MỤC</b> (nhiều thư mục con) — app tự lấy mọi HSTT Excel + PDF bên trong.</span><input type="file" id="f" multiple accept=".xlsx,.xlsm,.pdf" hidden></div>
     <div id="cards" style="display:flex;flex-direction:column;gap:14px;margin-top:14px"></div>
   </section>
   <section id="t-hs" class="hide"><div class="card"><div class="right"><table id="tb-hs"></table></div></div>
@@ -308,10 +308,35 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
 const drop = $("#drop");
 drop.onclick = () => $("#f").click(); $("#f").onchange = e => { nap([...e.target.files]); e.target.value = "" };   // cho phép chọn lại đúng file cũ
 drop.ondragover = e => { e.preventDefault(); drop.classList.add("hot") }; drop.ondragleave = () => drop.classList.remove("hot");
-drop.ondrop = e => { e.preventDefault(); drop.classList.remove("hot"); nap([...e.dataTransfer.files]) };
+drop.ondrop = async e => { e.preventDefault(); drop.classList.remove("hot"); const L = await layFile(e.dataTransfer, /\.(xlsx|xlsm|pdf)$/i); nap(L.files, L) };
+// ── KÉO THẢ CẢ THƯ MỤC: duyệt đệ quy mọi thư mục con · bỏ file tạm ~$ · Excel trước, PDF sau · sắp theo đường dẫn (Đợt 1 trước Đợt 2) ──
+async function layFile(dt, loc) {
+  const entries = [...(dt.items || [])].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if (!entries.length || !entries.some(x => x.isDirectory)) return {files: [...dt.files], thu_muc: false};
+  const out = [], bo = []; let so_tm = 0;
+  const docF = en => new Promise(ok => en.file(f => ok(f), () => ok(null)));
+  const liet = rd => new Promise(ok => rd.readEntries(x => ok(x), () => ok([])));
+  async function di(en) {
+    if (en.isFile) { const f = await docF(en); if (!f || f.name.startsWith("~$")) return; (loc.test(f.name) ? out : bo).push(Object.assign(f, {duong_dan: en.fullPath})); return }
+    so_tm++; const rd = en.createReader(); let lo; do { lo = await liet(rd); for (const c of lo) await di(c) } while (lo.length);
+  }
+  for (const en of entries) await di(en);
+  const k = f => (/\.pdf$/i.test(f.name) ? "1" : "0") + (f.duong_dan || f.name);
+  out.sort((a, b) => k(a).localeCompare(k(b), "vi", {numeric: true}));
+  return {files: out, thu_muc: true, so_tm, bo_qua: bo.length};
+}
 const b64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result.split(",")[1]); r.onerror = no; r.readAsDataURL(f) });
-async function nap(files) {
+async function nap(files, L) {
+  let tt = null;
+  if (L && L.thu_muc) {                                                   // thẻ tóm tắt khi thả cả thư mục
+    const nx = files.filter(f => !/\.pdf$/i.test(f.name)).length;
+    tt = document.createElement("div"); tt.className = "card"; $("#cards").prepend(tt);
+    tt.innerHTML = `<div class="hd"><h3>📁 Thả thư mục — ${L.so_tm} thư mục · ${files.length} hồ sơ (${nx} Excel · ${files.length - nx} PDF)${L.bo_qua ? ` · bỏ qua ${L.bo_qua} file khác` : ""}</h3><span class="chip tt-cb">đang xử lý 0/${files.length}</span></div>
+      <div class="pad note">Xử lý LẦN LƯỢT: Excel trước, PDF bản ký sau · sắp theo đường dẫn nên Đợt 1 trước Đợt 2. Mỗi hồ sơ vẫn chờ anh duyệt trước khi ghi sổ.</div>`;
+  }
+  let dem = 0;
   for (const f of files) {
+    if (tt) tt.querySelector(".tt-cb").textContent = `đang xử lý ${++dem}/${files.length} — ${f.duong_dan || f.name}`;
     if (/\.pdf$/i.test(f.name)) { $("#cards").prepend(await thePdfHstt(f)); continue; }   // PDF = bản ký kèm HSTT Excel
     if (!/\.xlsx?m?$/i.test(f.name) || /\.xls$/i.test(f.name)) {           // chặn sớm file không phải HSTT Excel (.xlsx/.xlsm)
       const w = document.createElement("div"); w.className = "card";
@@ -324,6 +349,7 @@ async function nap(files) {
     try { el.replaceWith(the(await api("/nap", {du_an: $("#da").value, ten: f.name, b64: await b64(f)}))) }
     catch (e) { el.querySelector(".chip").className = "chip er"; el.querySelector(".chip").textContent = "Lỗi: " + e.message }
   }
+  if (tt) { const c = tt.querySelector(".tt-cb"); c.className = "chip ok tt-cb"; c.textContent = `xong ${files.length}/${files.length}` }
 }
 function the(r) {
   const el = document.createElement("div"); el.className = "card"; el.dataset.id = r.id;
