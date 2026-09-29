@@ -55,7 +55,7 @@ def doc_file(path):
     if cdt.la_claim_cdt(wb):                                   # hồ sơ thanh toán GỬI CĐT (doanh thu)
         kq = cdt.doc_claim(path, wb); wb.close(); return kq
     cv = doc_cover(wb)
-    sn = next((s for s in wb.sheetnames if na(s) in ("05.GIA TRI", "BANG KL") or re.fullmatch(r"\d+\.BANG KL", na(s))), None)
+    sn = next((s for s in wb.sheetnames if na(s) in ("05.GIA TRI", "BANG KL", "BANG KLTT") or re.fullmatch(r"\d+\.\s*BANG KL(TT)?", na(s).strip())), None)
     if not sn and la_hoan_ung(wb):                             # hồ sơ HOÀN ỨNG quỹ BCH (tờ trình + bảng kê + phiếu tạm ứng + giấy thanh toán tạm ứng)
         kq = doc_hoan_ung(path, wb); wb.close(); return kq
     if not sn: wb.close(); raise ValueError("Không thấy sheet bảng giá trị / bảng KL (05.Giá trị hoặc 5.BẢNG KL)")
