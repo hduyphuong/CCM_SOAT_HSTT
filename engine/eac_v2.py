@@ -8,7 +8,6 @@ Mốc dự án ở N1_DanhMuc!V3 (khởi công) · W3 (hoàn thành dự kiến)
 Chạy: python eac_v2.py <khung.xlsx> [--ghi]"""
 import sys, os, shutil, datetime as dt, pythoncom, win32com.client as w32
 sys.stdout.reconfigure(encoding="utf-8")
-BAT_DAU, KET_THUC = dt.date(2026, 3, 5), dt.date(2027, 1, 5)
 def cach(ma):
     if ma.startswith(("NTP_", "DTC_")): return "KL"
     if ma.startswith("NCC_"): return "NS"
@@ -26,7 +25,11 @@ try:
     h2 = [str(w2.Cells(1, c).Value or "") for c in range(1, 20)]; col = lambda t: chr(64 + h2.index(t) + 1)
     cM, cD, cK, cG = col("Mã NS"), col("ĐVT"), col("KL"), col("Giá trị")
     w1.Range("V2").Value = "Ngày khởi công"; w1.Range("W2").Value = "Ngày hoàn thành dự kiến"
-    w1.Range("V3").Value = ser(BAT_DAU); w1.Range("W3").Value = ser(KET_THUC); w1.Range("V3:W3").NumberFormat = "dd/mm/yyyy"
+    # mốc dự án đọc từ CHÍNH khung (N1 V3/W3) — mỗi dự án một mốc, không gắn cứng; trống ⇒ dừng, không đoán
+    v3, w3 = w1.Range("V3").Value2, w1.Range("W3").Value2
+    if not isinstance(v3, (int, float)) or not isinstance(w3, (int, float)) or w3 <= v3:
+        raise SystemExit("N1_DanhMuc V3 (ngày khởi công) / W3 (ngày hoàn thành dự kiến) trống hoặc sai — khai báo trước rồi chạy lại")
+    BAT_DAU, KET_THUC = dt.date(1899, 12, 30) + dt.timedelta(days=int(v3)), dt.date(1899, 12, 30) + dt.timedelta(days=int(w3))
     ma_kl = []
     for r in range(3, 80):
         ma = w1.Range(f"L{r}").Value

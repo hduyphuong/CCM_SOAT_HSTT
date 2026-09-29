@@ -38,7 +38,7 @@ def nhom_cho(noi_dung, dvt, hd_noi_dung=None):
 
 if __name__ == "__main__":
     khung = sys.argv[1]; ghi = "--ghi" in sys.argv
-    if ghi: os.makedirs(os.path.join(os.path.dirname(khung), "_backup"), exist_ok=True); shutil.copy2(khung, os.path.join(os.path.dirname(khung), "_backup", f"CCM_HANGHAI_truoc_gan_nhom_doi_{dt.datetime.now():%Y%m%d_%H%M%S}.xlsx"))
+    if ghi: os.makedirs(os.path.join(os.path.dirname(khung), "_backup"), exist_ok=True); shutil.copy2(khung, os.path.join(os.path.dirname(khung), "_backup", f"{os.path.splitext(os.path.basename(khung))[0]}_truoc_gan_nhom_doi_{dt.datetime.now():%Y%m%d_%H%M%S}.xlsx"))
     pythoncom.CoInitialize(); xl = w32.DispatchEx("Excel.Application"); xl.Visible = False; xl.DisplayAlerts = False; wb = xl.Workbooks.Open(os.path.abspath(khung))
     try:
         w1, w7, w9 = wb.Worksheets("N1_DanhMuc"), wb.Worksheets("N7_HD_DoiTac_ChiTiet"), wb.Worksheets("N9_TT_DoiTac"); f = xl.WorksheetFunction
