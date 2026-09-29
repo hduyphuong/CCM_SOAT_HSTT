@@ -326,6 +326,37 @@ async function layFile(dt, loc) {
   return {files: out, thu_muc: true, so_tm, bo_qua: bo.length};
 }
 const b64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result.split(",")[1]); r.onerror = no; r.readAsDataURL(f) });
+// ── ✍️ KHAI BÁO THỦ CÔNG: chi phí không có hồ sơ (lương, thưởng…) ⇒ HĐ TẠM HD-NOIBO, đúng mã NS ──
+(function () {
+  const box = document.createElement("div"); box.className = "card";
+  box.innerHTML = `<div class="hd"><div><h3>✍️ Khai báo thủ công</h3><div class="note">Chi phí KHÔNG có hồ sơ: lương, thưởng, BHXH, công tác phí… — ghi vào HĐ tạm nội bộ, đúng mã ngân sách</div></div><span class="sp"></span><button class="btn kb-mo">Mở form</button></div>
+    <div class="pad kb-f" hidden><div class="nen-form" style="flex-wrap:wrap;gap:8px">
+      <label style="flex:1 1 260px">Mã ngân sách<select class="kb-ns"><option value="">— đang tải… —</option></select></label>
+      <label style="flex:2 1 320px">Nội dung<input class="kb-nd" placeholder="VD: Lương BCH tháng 3/2026"></label>
+      <label style="flex:0 1 160px">Ngày<input type="date" class="kb-ng"></label>
+      <label style="flex:0 1 190px">Số tiền TRƯỚC VAT<input type="number" class="kb-st" min="0" step="1000"></label>
+      <label style="flex:0 1 110px">VAT<select class="kb-vat"><option value="0">0%</option><option value="0.08">8%</option><option value="0.1">10%</option></select></label>
+      <label style="flex:1 1 260px">Ghi chú / căn cứ<input class="kb-gc" placeholder="VD: bảng lương T3 đã duyệt"></label></div>
+      <div style="margin-top:10px"><button class="btn ok kb-ghi">✓ Ghi sổ khoản này</button> <span class="note">Có backup · tự kiểm lũy kế tăng đúng số tiền · lưu vào "Hồ sơ đã nạp"</span></div><div class="res kb-kq"></div></div>`;
+  $("#drop").after(box);
+  box.querySelector(".kb-ng").value = new Date().toISOString().slice(0, 10);
+  box.querySelector(".kb-mo").onclick = async () => {
+    const f = box.querySelector(".kb-f"); f.hidden = !f.hidden; if (f.hidden) return;
+    try { const L = await api("/ma-ns?du_an=" + encodeURIComponent($("#da").value));
+          box.querySelector(".kb-ns").innerHTML = '<option value="">— chọn mã NS —</option>' + L.map(x => `<option value="${esc(x.ma)}">${esc(x.ma)} — ${esc(x.ten)}</option>`).join("") }
+    catch (e) { box.querySelector(".kb-kq").className = "res er kb-kq"; box.querySelector(".kb-kq").textContent = "Lỗi tải mã NS: " + e.message }
+  };
+  box.querySelector(".kb-ghi").onclick = async () => {
+    const v = c => box.querySelector(c).value, kq = box.querySelector(".kb-kq"), st = +v(".kb-st");
+    if (!v(".kb-ns") || !v(".kb-nd").trim() || !st) { kq.className = "res er kb-kq"; kq.textContent = "Cần chọn mã NS, nhập nội dung và số tiền"; return }
+    if (!confirm(`Ghi sổ ${st.toLocaleString("vi-VN")}đ (trước VAT${+v(".kb-vat") ? ", VAT " + (+v(".kb-vat") * 100) + "%" : ""}) vào ${v(".kb-ns")}?\n${v(".kb-nd")}`)) return;
+    const b = box.querySelector(".kb-ghi"); b.disabled = true; b.textContent = "Đang ghi…";
+    try { const r = await api("/khai-bao", {du_an: $("#da").value, ma_ns: v(".kb-ns"), noi_dung: v(".kb-nd"), ngay: v(".kb-ng"), so_tien: st, vat: +v(".kb-vat"), ghi_chu: v(".kb-gc")});
+          kq.className = "res ok kb-kq"; kq.textContent = r.thong_bao; box.querySelector(".kb-nd").value = ""; box.querySelector(".kb-st").value = ""; box.querySelector(".kb-gc").value = "" }
+    catch (e) { kq.className = "res er kb-kq"; kq.textContent = "Lỗi: " + e.message }
+    b.disabled = false; b.textContent = "✓ Ghi sổ khoản này";
+  };
+})();
 async function nap(files, L) {
   let tt = null;
   if (L && L.thu_muc) {                                                   // thẻ tóm tắt khi thả cả thư mục

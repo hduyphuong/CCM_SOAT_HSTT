@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json, os, sys, base64, datetime as dt, threading, traceback
 from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC, cay as C, nen as NEN, nhap_khung as NK, doc_scan as DS
+import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC, cay as C, nen as NEN, nhap_khung as NK, doc_scan as DS, khai_bao as KB
 
 PORT = 8765
 # VỊ TRÍ DỮ LIỆU — chỉ ghi ở máy này (engine/cau_hinh_may.json, không lên git): {"DATA": "<thư mục dữ liệu>"}.
@@ -247,6 +247,20 @@ def xu_ly_doc_scan(b):
     threading.Thread(target=_chay_ai_scan, args=(da, i), daemon=True).start()
     return rec
 
+def xu_ly_khai_bao(b):
+    """KHAI BÁO THỦ CÔNG (lương, thưởng… không hồ sơ) ⇒ HĐ TẠM HD-NOIBO · 1 dòng N9 · lưu vào sổ nạp để truy vết."""
+    da = b["du_an"]; cfg = du_an()[da]
+    with KHOA:
+        kq = KB.ghi(cfg["khung"], os.path.join(os.path.dirname(cfg["khung"]), "_backup"), b.get("ma_ns"), b.get("noi_dung"), b.get("ngay"),
+                    b.get("so_tien") or 0, b.get("vat") or 0, b.get("ghi_chu") or "", da=da)
+    i = "KB" + dt.datetime.now().strftime("%y%m%d%H%M%S"); now = dt.datetime.now().isoformat(timespec="seconds")
+    rec = dict(id=i, van_tay=i, ten=f"✍️ Khai báo tay: {str(b.get('noi_dung'))[:60]}", file=None, luc=now, luc_duyet=now, mau="KHAI_BAO_TAY", trang_thai="DA_GHI_SO",
+               phan_loai=dict(ma_hd=KB.MA_HD, loai_doi_tac="DVK", loai_hs="KHAI_BAO_TAY"),
+               tom_tat=dict(ky_nay=kq["so_tien"], dot=kq["dot"], don_vi=KB.TEN_DT, so_hd="HĐ TẠM – KHAI BÁO TAY", ngay=str(b.get("ngay"))[:10], vat=kq["vat"]),
+               co=[dict(muc="LUU_Y", lop="Hồ sơ", vi_tri="khai báo tay", hstt=kq["ma_ns"], doi_chieu=kq["ten_ns"], mo_ta=f"Chi phí KHÔNG có hồ sơ — {b.get('noi_dung')} · {b.get('ghi_chu') or ''}")],
+               ke_hoach=None, ket_qua=kq)
+    ghi_rec(da, i, rec)
+    return kq
 LY_DO_TAM = {"CONG_NHAT": "Công nhật không có HĐ", "MUA_LE": "Mua lẻ", "HOAN_UNG_BCH": "Hoàn ứng BCH", "KHAC": "Khác"}
 def xu_ly_hd_tam(b):
     """HĐ TẠM tự khai báo từ 1 HSTT chưa có HĐ (công nhật, mua lẻ, hoàn ứng BCH…): tạo đối tác + HĐ + bảng đơn giá theo dòng HSTT,
@@ -303,6 +317,7 @@ class H(BaseHTTPRequestHandler):
             if u.path == "/du-an": return self._tra(200, {k: v.get("ten", k) for k, v in du_an().items()})
             if u.path == "/ho-so": return self._tra(200, sorted(so_nap(q["du_an"]).values(), key=lambda r: r["luc"], reverse=True))
             if u.path == "/bao-cao": return self._tra(200, bao_cao(q["du_an"]))
+            if u.path == "/ma-ns": return self._tra(200, KB.ds_ma_ns(du_an()[q["du_an"]]["khung"]))
             if u.path == "/du-lieu": return self._tra(200, du_lieu(q["du_an"]))
             if u.path == "/danh-muc": return self._tra(200, NEN.danh_muc(du_an()[q["du_an"]]["khung"]))
             if u.path == "/ho-so-nen": return self._tra(200, sorted(NEN.doc_so(DATA, q["du_an"]).values(), key=lambda r: r["luc"], reverse=True))
@@ -319,6 +334,7 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/nhap-khung": return self._tra(200, xu_ly_nhap_khung(b))
             if self.path == "/hd-tam": return self._tra(200, xu_ly_hd_tam(b))
             if self.path == "/doc-scan": return self._tra(200, xu_ly_doc_scan(b))
+            if self.path == "/khai-bao": return self._tra(200, xu_ly_khai_bao(b))
             if self.path == "/xem-thay-hd":
                 cfg = du_an()[b["du_an"]]; return self._tra(200, NK.xem_thay_hd(K.doc_khung(cfg["khung"]), b["ma_hd"], NEN.doc_so(DATA, b["du_an"])[b["id"]]))
             if self.path == "/thay-hd-tam":
