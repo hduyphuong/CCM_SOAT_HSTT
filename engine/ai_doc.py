@@ -24,7 +24,7 @@ NTP=thầu phụ pháp nhân, NCC=cung cấp vật tư/hàng hoá, DVK=dịch v�
 'ben_tra_tien' = bên THANH TOÁN tiền theo HĐ, 'ben_nhan_tien' = bên ĐƯỢC thanh toán (HĐ mua bán vật tư: bên MUA trả tiền; HĐ giao thầu/giao khoán: bên giao việc trả tiền).
 Quy tắc: tiền = số VND (không dấu phân cách); phần trăm = thập phân (10% → 0.1); ngày = YYYY-MM-DD; 'bang' = bảng khối lượng/đơn giá/ngân sách
 (mỗi dòng 1 hạng mục, bỏ dòng tiêu đề nhóm và dòng cộng); 'tong_ghi_tren_file' = số tổng in trên file để đối chiếu; 'nguon' ghi trang/ô lấy từng số tiền.
-Không có hoặc đọc không rõ ⇒ để null VÀ thêm tên trường vào 'khong_chac'. TUYỆT ĐỐI KHÔNG ĐOÁN SỐ."""
+Số hợp đồng chép NGUYÊN VĂN từng ký tự, giữ đủ chữ 'Đ' có gạch (HĐGK, HĐTC, HĐTP, HĐNT… — KHÔNG viết thành HGK/HDGK). Không có hoặc đọc không rõ ⇒ để null VÀ thêm tên trường vào 'khong_chac'. TUYỆT ĐỐI KHÔNG ĐOÁN SỐ."""
 
 def trich_excel(path, toi_da=1500):
     """Excel ⇒ văn bản 'Sheet | ô: giá trị' (giá trị đã tính) để AI đọc; cắt bớt khi quá dài."""

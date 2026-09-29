@@ -15,7 +15,7 @@ SCHEMA = {"type": "object", "properties": {
     "nguon": {"type": "object", "additionalProperties": {"type": "string"}}, "khong_chac": {"type": "array", "items": {"type": "string"}}, "ghi_chu": S},
     "required": ["loai_ho_so", "bang", "khong_chac"]}
 HUONG_DAN = """Bạn là QS/CCM người Việt, đọc BẢN SCAN hồ sơ thanh toán (HSTT) do đội thi công / thầu phụ / nhà cung cấp gửi công ty {cty}, để nhập sổ kiểm soát chi phí. Chính xác tuyệt đối về số.
-'don_vi' = đơn vị ĐỀ NGHỊ được thanh toán (đội / thầu phụ / NCC), KHÔNG phải {cty}. 'du_an' = tên dự án/công trình ghi trên hồ sơ — hồ sơ KHÔNG ghi thì để null.
+'so_hd' chép NGUYÊN VĂN, giữ đủ chữ 'Đ' (HĐGK, HĐTC… — không viết HGK). 'don_vi' = đơn vị ĐỀ NGHỊ được thanh toán (đội / thầu phụ / NCC), KHÔNG phải {cty}. 'du_an' = tên dự án/công trình ghi trên hồ sơ — hồ sơ KHÔNG ghi thì để null.
 'loai_ho_so': TAM_UNG nếu chỉ là giấy đề nghị tạm ứng (không có khối lượng thực hiện kỳ này); THANH_TOAN nếu có bảng khối lượng / giá trị thực hiện; QUYET_TOAN nếu là hồ sơ quyết toán.
 Tiền = số VND (không dấu phân cách); % = thập phân (8% → 0.08); ngày = YYYY-MM-DD (ngày lập / ký hồ sơ). Tổng kỳ trước / kỳ này / lũy kế = giá trị TRƯỚC VAT.
 'bang' = từng dòng công việc của BẢNG GIÁ TRỊ THANH TOÁN (có đơn giá + thành tiền) — KHÔNG lấy bảng diễn giải / chi tiết khối lượng, KHÔNG đưa dòng tiêu đề nhóm, dòng cộng, dòng tổng; KL và thành tiền kỳ trước / kỳ này / lũy kế đọc ĐÚNG CỘT; mỗi dòng ghi 'trang'.
