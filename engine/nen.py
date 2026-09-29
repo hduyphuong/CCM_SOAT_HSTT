@@ -150,7 +150,7 @@ def danh_gia(kq, loai, loai_chon, dm):
         if t and la and abs(tong - t) > t * 0.005: C("CHAN", f"Σ các dòng {tong:,.0f} ≠ tổng ghi trên file {t:,.0f} (lệch {abs(tong - t) / t:.0%}) — file nhiều sheet, AI có thể gom lẫn dòng; cần đọc đúng sheet")
         elif t and la and abs(tong - t) > 1000: C("LUU_Y", f"Σ các dòng {tong:,.0f} ≠ tổng ghi trên file {t:,.0f} (làm tròn)")
     for x in kq.get("khong_chac") or []: C("LUU_Y", f"AI đọc không chắc: {x}")
-    if kq.get("loai") == "HSTT": C("LUU_Y", "Đây là HSTT — nạp ở mục ① Nạp & duyệt (Excel để soát, PDF làm bản ký)")
+    if kq.get("loai") == "HSTT": C("CHAN", "NẠP SAI CHỖ — đây là HỒ SƠ THANH TOÁN: kéo file vào mục ① Nạp & duyệt (Excel để soát; PDF scan bấm '🤖 AI đọc bản scan')")
     return co, dict(so_dong=len(la), tong_dong=tong)
 
 PCT = ("vat_pct", "pct_tam_ung", "pct_tt_dot", "pct_tt_quyet_toan", "pct_giu_lai")
@@ -252,7 +252,7 @@ def ap_ket_qua(data, da, i, khung, kq, meta):
                 os.chmod(cu, stat.S_IWRITE); os.remove(cu)
             rec["duong_dan"] = os.path.relpath(dich, data)
         rec.update(ai=kq, ai_meta=meta, co=co, la_phu_luc=la_pl, thong_ke=tk, loai=loai, loai_ten=LOAI[loai][0], ma_doi_tac=ma_dt, loai_doi_tac=loai_dt, doi_tac_moi=moi_dt,
-                   can_nhap=loai in CAN_NHAP, trang_thai="DA_NHAP" if rec.get("da_nhap_khung") else ("CHO_DUYET" if loai in CAN_NHAP else "DA_LUU"), loi=None, luc_ai=dt.datetime.now().isoformat(timespec="seconds"))
+                   can_nhap=loai in CAN_NHAP, trang_thai="DA_NHAP" if rec.get("da_nhap_khung") else ("SAI_NOI" if kq.get("loai") == "HSTT" else ("CHO_DUYET" if loai in CAN_NHAP else "DA_LUU")), loi=None, luc_ai=dt.datetime.now().isoformat(timespec="seconds"))
         s[i] = rec; ghi_so_nen(data, da, s)
 
 HANG = queue.Queue(); _CFG = {}

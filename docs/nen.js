@@ -2,7 +2,7 @@
 // HSTT PDF (bản ký) thả ở ô Nạp & duyệt ⇒ gắn vào HSTT Excel cùng HĐ + đợt.
 let DM = null, NEN_DS = [], NEN_POLL = null;
 const CAN_DT = ["HD_DOI_TAC", "BAO_GIA", "QUYET_TOAN"], LOAI_DT_TEN = {DTC: "Đội thi công", NTP: "Thầu phụ", NCC: "Nhà cung cấp", DVK: "Dịch vụ khác", CDT: "Chủ đầu tư"};
-const TT_NEN = {CHO_AI: ["🤖 app đang đọc…", ""], CHO_DUYET: ["chờ anh duyệt", "wa"], DA_LUU: ["đã lưu chứng từ", "ok"], DA_NHAP: ["đã nhập khung", "ok"],
+const TT_NEN = {CHO_AI: ["🤖 app đang đọc…", ""], CHO_DUYET: ["chờ anh duyệt", "wa"], DA_LUU: ["đã lưu chứng từ", "ok"], SAI_NOI: ["⛔ nạp sai chỗ — HSTT, nạp ở ① Nạp & duyệt", "er"], DA_NHAP: ["đã nhập khung", "ok"],
                 LOI_AI: ["lỗi đọc — bấm đọc lại", "er"], CHO_PHAN_LOAI: ["chưa rõ loại", "wa"]};
 async function taiDM() { DM = await api("/danh-muc?du_an=" + encodeURIComponent($("#da").value)); return DM }
 async function tabNen() {
