@@ -102,9 +102,18 @@ def doc(path, so_nap=None):
         ds_bill.append(dict(b, nguon=sorted(b["nguon"])[:2], ben=h["ben"], doi_tac=h["doi_tac"], so_hd=h["so_hd"], gia_tri_hd=h["gia_tri"], don_gia=h["don_gia"],
                             san_luong_lk=lk[m], pct=(lk[m] / h["gia_tri"]) if h["gia_tri"] else None, qua_app=(m, dot) in qua_app,
                             tinh_trang="Đã trả" if b["chua_tra"] == 0 else "Chưa ghi ngày trả"))
+    ck_hd, ac_hd = defaultdict(float), defaultdict(float)                # chi tiết THEO TỪNG HĐ × mã NS (bấm xổ trên BC tài chính — anh 29/09)
+    wx = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    try:
+        for r in wx["N7_HD_DoiTac_ChiTiet"].iter_rows(min_row=2, values_only=True):
+            if r[0] and r[11] and isinstance(r[8], (int, float)): ck_hd[(r[0], r[11])] += r[8]
+        for r in wx["N9_TT_DoiTac"].iter_rows(min_row=2, values_only=True):
+            if r[0] and r[12] and r[3] in ("THUC_HIEN", "DIEU_CHINH") and isinstance(r[10], (int, float)): ac_hd[(r[0], r[12])] += r[10]
+    finally: wx.close()
     for x in ns:
         x.update(r7.get(x["ma_ns"], {}))
-        x["hop_dong"] = [dict(ma_hd=m, doi_tac=hd[m]["doi_tac"], so_hd=hd[m]["so_hd"]) for m in sorted(lien.get(x["ma_ns"], []))]
+        x["hop_dong"] = [dict(ma_hd=m, doi_tac=hd[m]["doi_tac"], so_hd=hd[m]["so_hd"], cam_ket=ck_hd.get((m, x["ma_ns"]), 0.0), ac=ac_hd.get((m, x["ma_ns"]), 0.0))
+                         for m in sorted(lien.get(x["ma_ns"], []))]
     # ── Đối tác ──
     ds_dt = []
     for ma, d in doi_tac.items():

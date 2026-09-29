@@ -146,8 +146,8 @@ async function tabDoiTac() {
           {t: "Giữ lại", n: 1, v: x => tien(x.giu_lai), csv: x => x.giu_lai}, {t: "Hồ sơ", v: x => x.ho_so_thieu ? `<span class="chip wa">${x.ho_so_thieu} HĐ thiếu</span>` : '<span class="chip ok">đủ</span>', csv: x => x.ho_so_thieu}],
     click: x => x.ma_hd.map(m => theHD(d.hop_dong.find(h => h.ma_hd === m))).join('<div style="height:12px"></div>') || '<div class="card"><div class="empty">Chưa có hợp đồng</div></div>'});
 }
-const lienKet = ds => !ds.length ? '<span class="note">chưa giao thầu</span>' :
-  `<span class="chip" title="${esc(ds.map(h => h.doi_tac + " — " + h.so_hd).join("\n"))}">${ds.length} HĐ</span> <span class="note">${esc(ds.slice(0, 2).map(h => h.doi_tac.replace(/^(Tổ đội|Công ty (CP|TNHH)( MTV| TM DV XD| SX-TM| TV TK XD)?)\s*/i, "")).join(", "))}${ds.length > 2 ? ` +${ds.length - 2}` : ""}</span>`;
+const lienKet = (ds, ma) => !ds.length ? '<span class="note">chưa giao thầu</span>' :
+  `<span class="chip bs-hd" data-ns="${esc(ma || "")}" style="cursor:pointer" title="Bấm để xem từng HĐ: đối tác, giá trị, đã thực hiện">${ds.length} HĐ ▾</span> <span class="note">${esc(ds.slice(0, 2).map(h => h.doi_tac.replace(/^(Tổ đội|Công ty (CP|TNHH)( MTV| TM DV XD| SX-TM| TV TK XD)?)\s*/i, "")).join(", "))}${ds.length > 2 ? ` +${ds.length - 2}` : ""}</span>`;
 // ───────────── BÁO CÁO TÀI CHÍNH (Hàng A doanh thu · B chi phí · C lợi nhuận) ─────────────
 async function tabBCTC() {
   const d = await taiDL(), T = d.tong_lai_lo["TỔNG DỰ ÁN"] || {}, el = $("#t-bctc");
@@ -159,7 +159,7 @@ async function tabBCTC() {
     const q = (el.querySelector(".tim").value || "").toLowerCase();
     const ok = x => !q || [x.ten, x.ma_ns, ...x.hop_dong.map(h => h.doi_tac), ...x.hop_dong.map(h => h.so_hd)].some(s => String(s ?? "").toLowerCase().includes(q));
     const dong = (x, lv) => `<tr class="${lv}"><td>${lv === "l2" ? `${esc(x.ten)}<div class="note">${esc(x.ma_ns)}</div>` : x.ten}${x.canh_bao ? `<div><span class="chip er">${esc(x.canh_bao)}</span></div>` : ""}</td>
-      <td>${x.hop_dong ? lienKet(x.hop_dong) : ""}</td>
+      <td>${x.hop_dong ? lienKet(x.hop_dong, x.ma_ns) : ""}</td>
       <td class="n">${tien(x.dt_pb)}</td><td class="n">${tien(x.ns)}</td><td class="n">${tien(x.cam_ket)}</td><td class="n">${tien(x.thuc_hien)}</td>
       <td class="n">${tien(x.con_lai)}${x.cach ? `<div class="note">${esc(PP_ETC[x.cach] || x.cach)}</div>` : ""}</td><td class="n">${tien(x.eac)}${Math.abs(x.ns_tru_eac || 0) >= 1 ? `<div class="note ${ng(x.ns_tru_eac)}">NS−EAC ${tien(x.ns_tru_eac)}</div>` : ""}</td><td class="n ${ng(x.ln_dk)}">${tien(x.ln_dk)}</td></tr>`;
     let h = `<thead><tr><th>Tên hạng mục</th><th>Hợp đồng liên kết</th><th class="n">Doanh thu phân bổ</th><th class="n">Phân bổ dự trù (NS)</th><th class="n">GT HĐ đã ký</th>
@@ -177,6 +177,18 @@ async function tabBCTC() {
     const B = {ten: "Cộng chi phí (Hàng B)", dt_pb: S(d.ns, "dt_pb"), ns: S(d.ns, "ns"), cam_ket: S(d.ns, "cam_ket"), thuc_hien: S(d.ns, "thuc_hien"), eac: S(d.ns, "eac"), ns_tru_eac: S(d.ns, "ns_tru_eac"), ln_dk: S(d.ns, "ln_dk")};
     h += dong(B, "l1 tong") + "</tbody>";
     el.querySelector(".bang").innerHTML = h;
+    el.querySelectorAll(".bang .bs-hd").forEach(b => b.onclick = ev => {      // bấm "N HĐ ▾" ⇒ xổ chi tiết từng HĐ của mã NS
+      ev.stopPropagation(); const tr = b.closest("tr"), nx = tr.nextElementSibling;
+      if (nx && nx.classList.contains("ct-hd")) { nx.remove(); b.textContent = b.textContent.replace("▴", "▾"); return }
+      const x = d.ns.find(n => n.ma_ns === b.dataset.ns); if (!x) return;
+      const hs = [...x.hop_dong].sort((p, q) => (q.ac || 0) - (p.ac || 0) || (q.cam_ket || 0) - (p.cam_ket || 0));
+      tr.insertAdjacentHTML("afterend", `<tr class="ct-hd"><td colspan="9" style="background:#faf8ff;padding:8px 14px">
+        <table style="width:100%"><tr><th>Đối tác</th><th>Số HĐ</th><th class="n">GT HĐ đã ký (phần mã NS này)</th><th class="n">AC — đã thực hiện</th><th class="n">% thực hiện / HĐ</th><th class="n">Tỷ trọng AC</th></tr>
+        ${hs.map(h => `<tr><td>${esc(h.doi_tac)}<div class="note">${esc(h.ma_hd)}</div></td><td>${esc(h.so_hd || "")}</td><td class="n">${tien(h.cam_ket)}</td><td class="n">${tien(h.ac)}</td>
+          <td class="n">${h.cam_ket ? pc(h.ac / h.cam_ket) : "—"}</td><td class="n">${x.thuc_hien ? pc(h.ac / x.thuc_hien) : "—"}</td></tr>`).join("")}
+        <tr><td colspan="2"><b>Cộng ${hs.length} HĐ</b></td><td class="n"><b>${tien(S(hs, "cam_ket"))}</b></td><td class="n"><b>${tien(S(hs, "ac"))}</b></td><td></td><td></td></tr></table></td></tr>`);
+      b.textContent = b.textContent.replace("▾", "▴");
+    });
   };
   const A = CV("3"), Bns = T.ns, eac = CV("10"), lnk = T.ln_kh, lnd = CV("11"), tt6 = CV("6"), dp7 = CV("7");
   el.innerHTML = `<div class="card"><div class="hd"><div><h3>Báo cáo tài chính dự án</h3><div class="note">${esc(d.du_an.ten)} · CĐT ${esc(d.du_an.cdt)} · cut-off ${dd(d.du_an.moc)}</div></div><span class="sp"></span>
