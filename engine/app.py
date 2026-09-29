@@ -9,13 +9,13 @@ Trang (GitHub Pages / file local) gọi vào đây. Dữ liệu CHỈ nằm trê
   POST /doc-scan {du_an, ten, b64} → HSTT chỉ có bản scan: AI đọc số (chạy nền) rồi soát như Excel
   POST /doan-hstt {du_an, ten} · POST /dinh-kem {du_an, id, ten, b64} → PDF bản ký gắn vào HSTT Excel cùng HĐ + đợt
   GET  /du-lieu?du_an=X           → ĐẦU RA: hợp đồng · bill · báo cáo tài chính · đối tác · dòng tiền (đọc R1…R7 của file khung)
-  GET  /hd-ns-ds?du_an=X · GET /hd-ns?du_an=X&ma_hd=HD-.. | &nen_id=..  → SO GIÁ: kiểm HĐ ↔ ngân sách (CHỈ ĐỌC khung, nghiệp vụ độc lập)
-  GET  /ptln?du_an=X&ds=khung|HD-a,nen|<id>  → PTLN: so giá nhiều đơn vị nhận thầu ↔ NS ↔ BoQ CĐT (chỉ đọc)"""
+  SO GIÁ (chọn thầu — CHỈ LƯU kết quả, KHÔNG ghi khung): GET /so-gia?du_an · /so-gia/phien?du_an&phien · /so-gia/ptln?du_an&phien
+       POST /so-gia/tao {du_an, ten} · /so-gia/nap {du_an, phien, ten, b64} · /so-gia/sua {…, dv, ten, dung} · /so-gia/doc-lai · /so-gia/luu {…, chon, ghi_chu}"""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json, os, sys, base64, datetime as dt, threading, traceback
 from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC, cay as C, nen as NEN, nhap_khung as NK, doc_scan as DS, khai_bao as KB, hd_ns as HN
+import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC, cay as C, nen as NEN, nhap_khung as NK, doc_scan as DS, khai_bao as KB, so_gia as SG
 
 PORT = 8765
 # VỊ TRÍ DỮ LIỆU — chỉ ghi ở máy này (engine/cau_hinh_may.json, không lên git): {"DATA": "<thư mục dữ liệu>"}.
@@ -322,13 +322,12 @@ class H(BaseHTTPRequestHandler):
             if u.path == "/ma-ns": return self._tra(200, KB.ds_ma_ns(du_an()[q["du_an"]]["khung"]))
             if u.path == "/du-lieu": return self._tra(200, du_lieu(q["du_an"]))
             if u.path == "/danh-muc": return self._tra(200, NEN.danh_muc(du_an()[q["du_an"]]["khung"]))
-            if u.path == "/hd-ns-ds": return self._tra(200, HN.ds_nguon(du_an()[q["du_an"]]["khung"], NEN.doc_so(DATA, q["du_an"])))
-            if u.path == "/hd-ns":
-                kh = du_an()[q["du_an"]]["khung"]
-                return self._tra(200, HN.kiem(kh, rec_nen=NEN.doc_so(DATA, q["du_an"])[q["nen_id"]]) if q.get("nen_id") else HN.kiem(kh, q["ma_hd"]))
-            if u.path == "/ptln":
-                nguon = [tuple(x.split("|", 1)) for x in q["ds"].split(",") if "|" in x]
-                return self._tra(200, HN.ptln(du_an()[q["du_an"]]["khung"], nguon, NEN.doc_so(DATA, q["du_an"])))
+            if u.path == "/so-gia": return self._tra(200, SG.ds_phien(DATA, q["du_an"]))
+            if u.path == "/so-gia/phien":
+                p = SG.doc_so(DATA, q["du_an"])[q["phien"]]
+                return self._tra(200, dict(p, don_vi=[{k: v for k, v in d.items() if k not in ("ai", "ai_meta")} | dict(bang=((d.get("ai") or {}).get("bang") or [])[:200])
+                                                      for d in sorted(p["don_vi"].values(), key=lambda d: d["luc"])]))
+            if u.path == "/so-gia/ptln": return self._tra(200, SG.so_sanh(DATA, q["du_an"], q["phien"], du_an()[q["du_an"]]["khung"]))
             if u.path == "/ho-so-nen": return self._tra(200, sorted(NEN.doc_so(DATA, q["du_an"]).values(), key=lambda r: r["luc"], reverse=True))
             self._tra(404, dict(loi="không có đường dẫn này"))
         except Exception as e: traceback.print_exc(); self._tra(500, dict(loi=str(e)))
@@ -352,6 +351,11 @@ class H(BaseHTTPRequestHandler):
                 if kq["ok"]: NEN.sua_rec(DATA, b["du_an"], b["id"], thay_hd_tam=dict(ma_hd=b["ma_hd"], luc=dt.datetime.now().isoformat(timespec="seconds")))
                 return self._tra(200, kq)
             if self.path == "/doc-lai": return self._tra(200, NEN.doc_lai(DATA, b["du_an"], b["id"]))
+            if self.path == "/so-gia/tao": return self._tra(200, SG.tao_phien(DATA, b["du_an"], b.get("ten"), b.get("ghi_chu", "")))
+            if self.path == "/so-gia/nap": return self._tra(200, SG.nap(DATA, b["du_an"], b["phien"], os.path.basename(b["ten"]), base64.b64decode(b["b64"])))
+            if self.path == "/so-gia/sua": return self._tra(200, SG.sua_dv(DATA, b["du_an"], b["phien"], b["dv"], b.get("ten"), b.get("dung")))
+            if self.path == "/so-gia/doc-lai": return self._tra(200, SG.doc_lai(DATA, b["du_an"], b["phien"], b["dv"]))
+            if self.path == "/so-gia/luu": return self._tra(200, SG.luu_ket_qua(DATA, b["du_an"], b["phien"], du_an()[b["du_an"]]["khung"], b.get("chon"), b.get("ghi_chu", "")))
             self._tra(404, dict(loi="không có đường dẫn này"))
         except Exception as e: traceback.print_exc(); self._tra(500, dict(loi=str(e)))
     def log_message(self, fmt, *a): sys.stderr.write(f"[{dt.datetime.now():%H:%M:%S}] {fmt % a}\n")
@@ -362,7 +366,8 @@ if __name__ == "__main__":
     for _da in du_an():                                           # engine tắt giữa lúc AI đọc scan ⇒ khởi động lại thì ĐỌC TIẾP, không kẹt 'đang đọc'
         for _i, _r in so_nap(_da).items():
             if _r.get("trang_thai") == "DANG_DOC_AI": threading.Thread(target=_chay_ai_scan, args=(_da, _i), daemon=True).start()
-    NEN.khoi_dong(DATA, du_an, CTY)                                  # luồng AI đọc hồ sơ nền (gói Claude của người dùng) + xếp lại việc dở
+    NEN.khoi_dong(DATA, du_an, CTY)
+    SG.khoi_dong(DATA, du_an, CTY)                                   # AI đọc báo giá của phiên so giá (hàng đợi riêng, không lẫn hồ sơ nền)                                  # luồng AI đọc hồ sơ nền (gói Claude của người dùng) + xếp lại việc dở
     for da_, v in du_an().items():                                   # bổ sung cây thư mục (idempotent) — đối tác mới có HĐ thì có folder
         try: C.tao_cay(DATA, da_, v.get("khung"))
         except Exception as e: print(f"[cây] {da_}: {e}")

@@ -1,5 +1,5 @@
 """KIỂM HỢP ĐỒNG ↔ NGÂN SÁCH — nghiệp vụ ĐỘC LẬP (anh Phương 29/09/2026): CHỈ ĐỌC khung, không ghi gì, không nối vào luồng HSTT.
-Nguồn HĐ: (1) HĐ đã có trong khung (N6/N7) · (2) HĐ / báo giá AI đã đọc ở Hồ sơ nền nhưng CHƯA nhập khung (kiểm trước khi ký).
+Dùng cho GIAI ĐOẠN CHỌN THẦU (anh 29/09): báo giá ứng viên ↔ NS ↔ BoQ CĐT ↔ giá đã ký. HĐ đã ký trong khung chỉ là GIÁ THAM CHIẾU.
 Mỗi dòng HĐ → mã NS (khung, hoặc gợi ý theo luật gan_nhom_doi) → dòng NS khớp (cùng mã NS + ĐVT, giống nội dung nhất) ⇒ so ĐƠN GIÁ.
 Mỗi mã NS · ĐVT ⇒ so KHỐI LƯỢNG: KL NS ↔ KL HĐ này ↔ KL các HĐ đã ký khác. Mỗi mã NS ⇒ so GIÁ TRỊ.
 Mức cờ: DO = đơn giá HĐ vượt NS (so đúng dòng) · VANG = KL/giá trị vượt NS, hoặc ĐG vượt khi chỉ so được bình quân mã
@@ -95,18 +95,6 @@ def doc_khung(path):
     return dict(ten_dt=ten_dt, ten_ns=ten_ns, ns=ns, hd=hd, dong=dict(dong), boq=boq)
 
 def la_hd_chi_phi(ma): return bool(ma) and not str(ma).startswith("HD-CDT")
-
-def ds_nguon(khung, so_nen):
-    """Danh sách HĐ chọn để kiểm: HĐ chi phí trong khung + hồ sơ nền AI đã đọc bảng mà chưa nhập khung."""
-    k = doc_khung(khung)
-    ds = [dict(nguon="khung", ma=m, ten=f"{m} · {h['doi_tac'] or h['ma_doi_tac'] or ''}", so_hd=h["so_hd"], gia_tri=h["gia_tri"], so_dong=len(k["dong"].get(m, [])))
-          for m, h in k["hd"].items() if la_hd_chi_phi(m)]
-    for i, r in so_nen.items():
-        bang = NEN.dong_la((r.get("ai") or {}).get("bang"))
-        if bang and r.get("loai") in ("HD_DOI_TAC", "BAO_GIA", "CHON_THAU", "QUYET_TOAN") and not r.get("da_nhap_khung"):
-            ds.append(dict(nguon="nen", ma=i, ten=f"{r.get('loai_ten') or r.get('loai')} · {(r.get('ai') or {}).get('doi_tac_ten') or r['ten']}", so_hd=(r.get("ai") or {}).get("so_hd") or "",
-                           gia_tri=sum(NEN.tien_dong(x) for x in bang), so_dong=len(bang), file=r["ten"], trang_thai=r.get("trang_thai")))
-    return ds
 
 def _dong_tu_nen(rec):
     ai = rec.get("ai") or {}; out = []
@@ -210,36 +198,50 @@ def kiem(khung, ma_hd=None, rec_nen=None, k=None):
                 ma_ns_vuot=sum(1 for x in gt if x["muc"] in ("DO", "VANG")))
     return dict(hd=h, tong=tong, dong=dong, kl=kl, gt=gt, ghi_chu=ghi_chu, nguong=dict(dg=NGUONG_DG, lech_bq=LECH_BQ, khop=KHOP_TOI_THIEU))
 
-def ptln(khung, nguon, so_nen):
-    """PTLN — so giá NHIỀU đơn vị nhận thầu ↔ ngân sách ↔ BoQ CĐT. nguon = [("khung", mã HĐ) | ("nen", id hồ sơ nền)].
-    Hàng = DÒNG NGÂN SÁCH mà ít nhất 1 đơn vị báo giá ghép được (lõi ghép dòng dùng chung với kiem()).
-    Tổng mỗi đơn vị = Σ ĐG × KL NS — xếp hạng chỉ trên các dòng MỌI đơn vị cùng báo (so công bằng).
-    BoQ CĐT: ghép theo nội dung + ĐVT; KHÔNG tính TSLN vì giá CĐT có thể gồm vật tư, giá đội chỉ nhân công ⇒ chỉ hiện tỷ lệ giá ĐV / giá bán."""
-    k = doc_khung(khung); dv, hang, le = [], {}, []
-    for i, (ng, ma) in enumerate(nguon):
-        r = kiem(khung, rec_nen=so_nen[ma], k=k) if ng == "nen" else kiem(khung, ma, k=k)
-        h = r["hd"]; dv.append(dict(i=i, nguon=ng, ma=ma, ten=h.get("doi_tac") or h.get("ma_hd") or ma, ma_hd=h.get("ma_hd"), so_hd=h.get("so_hd"), gia_tri=h.get("gia_tri"), so_dong=r["tong"]["so_dong"]))
+def gia_da_ky(khung, k):
+    """GIÁ THAM CHIẾU cho giai đoạn chọn thầu: mỗi dòng NS → các đơn giá đã KÝ (HĐ chi phí trong khung, dòng trong HĐ) ghép được đúng dòng đó."""
+    ref = defaultdict(list)
+    for m in k["hd"]:
+        if not la_hd_chi_phi(m) or not k["dong"].get(m): continue
+        for d in kiem(khung, m, k=k)["dong"]:
+            if d["cach_so"] == "đúng dòng NS" and d.get("pham_vi") != "NGOAI_HD" and d["dg"]:
+                ref[(d["ma_ns"], d["ns_ma_cv"], d["ns_noi_dung"], dvt(d["dvt"]))].append(dict(dg=d["dg"], ma_hd=m, doi_tac=k["hd"][m]["doi_tac"]))
+    return ref
+
+def ptln(khung, don_vi):
+    """PTLN — GIAI ĐOẠN CHỌN THẦU (anh 29/09): so báo giá NHIỀU ứng viên ↔ ngân sách ↔ BoQ CĐT ↔ giá đã ký. KHÔNG ghi khung.
+    don_vi = [{id, ten, ai:{bang,…}, ten_file}] (báo giá AI đã đọc). Hàng = dòng NS mà ≥1 ứng viên ghép được (lõi ghép dòng dùng chung với kiem()).
+    Xếp hạng: Σ ĐG × KL NS trên các dòng MỌI ứng viên cùng báo (so công bằng). Lợi nhuận: chênh so NS = Σ (ĐG − ĐG NS) × KL báo giá (âm = tiết kiệm).
+    BoQ CĐT có thể gồm vật tư + nhân công ⇒ chỉ hiện tỷ lệ giá / giá bán, KHÔNG tính TSLN dòng."""
+    k = doc_khung(khung); dv, hang, le, theo_ma = [], {}, [], {}
+    for i, u in enumerate(don_vi):
+        r = kiem(khung, rec_nen=dict(ai=u["ai"], ten=u.get("ten_file") or u["ten"], loai_ten="Báo giá"), k=k)
+        chenh = sum((d["dg"] - d["dg_ns"]) * (d["kl"] or 0) for d in r["dong"] if d["cach_so"] == "đúng dòng NS" and d["dg"] is not None and d["dg_ns"])
+        dv.append(dict(i=i, id=u["id"], ten=u["ten"], so_dong=r["tong"]["so_dong"], gt_bao_gia=r["tong"]["tien"], chenh_ns=chenh,
+                       vuot_ns_tien=r["tong"]["tien_vuot_dg"], dem=r["tong"]["dem"], ghi_chu_ai=(u["ai"].get("khong_chac") or [])[:5]))
+        for g in r["gt"]:
+            x = theo_ma.setdefault(g["ma_ns"], dict(ma_ns=g["ma_ns"], ten_ns=g["ten_ns"], ns=g["gt_ns"], da_giao=g["gt_khac"], hd_da_ky=g["hd_khac"], gt={}))
+            x["gt"][i] = g["gt_nay"]
         for d in r["dong"]:
-            if d.get("pham_vi") == "NGOAI_HD": continue                   # phát sinh ngoài HĐ không phải giá chào thầu
             if d["cach_so"] == "đúng dòng NS" and d["muc"] != "XAM":
                 key = (d["ma_ns"], d["ns_ma_cv"], d["ns_noi_dung"], dvt(d["dvt"]))
                 x = hang.setdefault(key, dict(ma_ns=d["ma_ns"], ten_ns=d["ten_ns"], ma_cv=d["ns_ma_cv"], noi_dung=d["ns_noi_dung"], dvt=d["dvt"], dg_ns=d["dg_ns"], gia={}))
-                x["gia"].setdefault(i, []).append(dict(dg=d["dg"], noi_dung=d["noi_dung"], stt=d["stt"], giong=d["do_giong"]))
-            elif d["dg"]: le.append(dict(i=i, stt=d["stt"], noi_dung=d["noi_dung"], dvt=d["dvt"], dg=d["dg"], ma_ns=d["ma_ns"], ly_do=d.get("ly_do"), dg_ns=d["dg_ns"], cach_so=d["cach_so"]))
+                x["gia"].setdefault(i, []).append(dict(dg=d["dg"], kl=d["kl"], noi_dung=d["noi_dung"], stt=d["stt"], giong=d["do_giong"]))
+            elif d["dg"]: le.append(dict(i=i, stt=d["stt"], noi_dung=d["noi_dung"], dvt=d["dvt"], dg=d["dg"], ma_ns=d["ma_ns"], ly_do=d.get("ly_do")))
     kl_ns = defaultdict(float)
     for n in k["ns"]:
         if n["kl"] is not None: kl_ns[(n["ma_ns"], n["ma_cv"], n["noi_dung"], dvt(n["dvt"]))] += n["kl"]
     boq = defaultdict(list)
     for b in k["boq"]: boq[dvt(b["dvt"])].append(b)
-    ds = []
+    ref = gia_da_ky(khung, k); ds = []
     for key, x in hang.items():
         x["kl_ns"] = kl_ns.get(key)
         xh = chon_dong(x["noi_dung"], boq.get(key[3], []))
-        if xh and xh[0][0] >= 0.5: x.update(dg_boq=xh[0][1]["dg"], boq_noi_dung=xh[0][1]["noi_dung"], boq_giong=xh[0][0])
-        else: x.update(dg_boq=None, boq_noi_dung=None, boq_giong=None)
-        for i, g in x["gia"].items():
-            for y in g: y["chenh"] = y["dg"] / x["dg_ns"] - 1 if x["dg_ns"] else None
-        gm = {i: max(y["dg"] for y in g) for i, g in x["gia"].items()}       # 1 ĐV nhiều dòng cùng ghép 1 dòng NS ⇒ lấy giá CAO nhất (thận trọng)
+        x.update(dg_boq=xh[0][1]["dg"], boq_noi_dung=xh[0][1]["noi_dung"]) if xh and xh[0][0] >= 0.5 else x.update(dg_boq=None, boq_noi_dung=None)
+        rf = ref.get(key, [])
+        x["da_ky_min"] = min((y["dg"] for y in rf), default=None); x["da_ky_max"] = max((y["dg"] for y in rf), default=None)
+        x["da_ky_so_hd"] = len({y["ma_hd"] for y in rf}); x["da_ky_ai"] = sorted({y["doi_tac"] or y["ma_hd"] for y in rf if y["dg"] == x["da_ky_min"]})[:3]
+        gm = {i: max(y["dg"] for y in g) for i, g in x["gia"].items()}       # 1 ứng viên nhiều dòng cùng ghép 1 dòng NS ⇒ lấy giá CAO nhất (thận trọng)
         x["dg_dv"] = gm; x["thap_nhat"] = min(gm.values()) if gm else None
         x["dv_thap"] = [i for i, v in gm.items() if v == x["thap_nhat"]]
         ds.append(x)
@@ -248,13 +250,17 @@ def ptln(khung, nguon, so_nen):
     for d in dv:
         i = d["i"]; co = [x for x in ds if i in x["dg_dv"]]
         d.update(so_hang=len(co), vuot_ns=sum(1 for x in co if x["dg_ns"] and x["dg_dv"][i] > x["dg_ns"] * (1 + NGUONG_DG)),
-                 gt_theo_kl_ns=sum(x["dg_dv"][i] * (x["kl_ns"] or 0) for x in co), gt_chung=sum(x["dg_dv"][i] * (x["kl_ns"] or 0) for x in chung),
-                 gt_ns_chung=sum((x["dg_ns"] or 0) * (x["kl_ns"] or 0) for x in chung), so_le=sum(1 for l in le if l["i"] == i))
+                 vuot_da_ky=sum(1 for x in co if x["da_ky_min"] and x["dg_dv"][i] > x["da_ky_min"] * (1 + NGUONG_DG)),
+                 gt_chung=sum(x["dg_dv"][i] * (x["kl_ns"] or 0) for x in chung), gt_ns_chung=sum((x["dg_ns"] or 0) * (x["kl_ns"] or 0) for x in chung),
+                 so_le=sum(1 for l in le if l["i"] == i))
     if len(dv) > 1 and chung:
         for d in dv: d["hang"] = 1 + sum(1 for e in dv if e["gt_chung"] < d["gt_chung"] - 1)   # bằng giá ⇒ đồng hạng
-    ghi_chu = [f"Xếp hạng trên {len(chung)} dòng NS mà cả {len(dv)} đơn vị cùng báo giá (Σ ĐG × KL ngân sách)." if len(dv) > 1 else "Chọn ≥ 2 đơn vị để xếp hạng."]
-    if any(x["dg_boq"] for x in ds): ghi_chu.append("Giá BoQ CĐT có thể GỒM vật tư + nhân công; giá đơn vị nhận thầu thường chỉ nhân công ⇒ chỉ so TỶ LỆ, không tính TSLN.")
-    return dict(don_vi=dv, hang=ds, le=le, so_chung=len(chung), ghi_chu=ghi_chu)
+    ma = sorted(theo_ma.values(), key=lambda x: x["ma_ns"])
+    for x in ma: x["con_lai"] = (x["ns"] or 0) - (x["da_giao"] or 0) if x["ns"] else None
+    ghi_chu = [f"Xếp hạng trên {len(chung)} dòng NS mà cả {len(dv)} ứng viên cùng báo giá (Σ ĐG × KL ngân sách)." if len(dv) > 1 else "Thêm ≥ 2 ứng viên để xếp hạng."]
+    if len(chung) < max((d["so_hang"] for d in dv), default=0): ghi_chu.append("Các ứng viên báo giá KHÔNG cùng phạm vi — dòng chỉ 1 bên báo không vào xếp hạng; anh xem cột '—'.")
+    if any(x["dg_boq"] for x in ds): ghi_chu.append("Giá BoQ CĐT có thể GỒM vật tư + nhân công; giá ứng viên thường chỉ nhân công ⇒ chỉ so TỶ LỆ, không tính TSLN dòng.")
+    return dict(don_vi=dv, hang=ds, le=le, theo_ma=ma, so_chung=len(chung), ghi_chu=ghi_chu)
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
