@@ -26,9 +26,12 @@ def ma_ns(ten):
         if re.search(rx, t): return m, True
     return None, False
 
-def nhom_cho(noi_dung, dvt):
-    """(mã nhóm, dòng N1 Q:T) cho 1 dòng HĐ đội mới — None nếu bảng luật chưa có mục khớp."""
+def nhom_cho(noi_dung, dvt, hd_noi_dung=None):
+    """(mã nhóm, dòng N1 Q:T) cho 1 dòng HĐ đội mới — None nếu bảng luật chưa có mục khớp.
+    HĐ VẬN CHUYỂN (nội dung HĐ có 'vận chuyển'): dòng mang tên vật tư (xi măng, cát, gạch…) là CƯỚC ⇒ DTC_VanChuyen."""
     m, _ = ma_ns(noi_dung)
+    if hd_noi_dung and "VAN CHUYEN" in na(hd_noi_dung) and m and m.startswith("NCC_"): m = "DTC_VanChuyen"
+    if m is None and hd_noi_dung and "VAN CHUYEN" in na(hd_noi_dung) and re.search(r"GACH|XI MANG|CAT|DA |KEO", na(noi_dung)): m = "DTC_VanChuyen"
     if not m: return None, None
     nh = f"DOI_{m}_" + re.sub(r"[^A-Za-z0-9]", "", na(dvt))
     return nh, (nh, f"Đội/NTP → {m} ({dvt})", str(dvt or "").strip(), m)
