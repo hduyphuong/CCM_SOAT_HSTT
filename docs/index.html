@@ -329,8 +329,8 @@ const b64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload 
 // ── ✍️ KHAI BÁO THỦ CÔNG: chi phí không có hồ sơ (lương, thưởng…) ⇒ HĐ TẠM HD-NOIBO, đúng mã NS ──
 (function () {
   const box = document.createElement("div"); box.className = "card";
-  box.innerHTML = `<div class="hd"><div><h3>✍️ Khai báo thủ công</h3><div class="note">Chi phí KHÔNG có hồ sơ: lương, thưởng, BHXH, công tác phí… — ghi vào HĐ tạm nội bộ, đúng mã ngân sách</div></div><span class="sp"></span><button class="btn kb-mo">Mở form</button></div>
-    <div class="pad kb-f" hidden><div class="nen-form" style="flex-wrap:wrap;gap:8px">
+  box.innerHTML = `<div class="hd"><div><h3>✍️ Khai báo thủ công</h3><div class="note">Chi phí KHÔNG có hồ sơ: lương, thưởng, BHXH, công tác phí… — ghi vào HĐ tạm nội bộ, đúng mã ngân sách</div></div><span class="sp"></span><button class="btn fix kb-mo">✍️ Mở form khai báo</button></div>
+    <div class="pad kb-f" style="display:none"><div class="nen-form" style="flex-wrap:wrap;gap:8px">
       <label style="flex:1 1 260px">Mã ngân sách<select class="kb-ns"><option value="">— đang tải… —</option></select></label>
       <label style="flex:2 1 320px">Nội dung<input class="kb-nd" placeholder="VD: Lương BCH tháng 3/2026"></label>
       <label style="flex:0 1 160px">Ngày<input type="date" class="kb-ng"></label>
@@ -341,7 +341,7 @@ const b64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload 
   $("#drop").after(box);
   box.querySelector(".kb-ng").value = new Date().toISOString().slice(0, 10);
   box.querySelector(".kb-mo").onclick = async () => {
-    const f = box.querySelector(".kb-f"); f.hidden = !f.hidden; if (f.hidden) return;
+    const f = box.querySelector(".kb-f"), mo = f.style.display === "none"; f.style.display = mo ? "block" : "none"; box.querySelector(".kb-mo").textContent = mo ? "✕ Đóng form" : "✍️ Mở form khai báo"; if (!mo || box.dataset.nap) return; box.dataset.nap = 1;
     try { const L = await api("/ma-ns?du_an=" + encodeURIComponent($("#da").value));
           box.querySelector(".kb-ns").innerHTML = '<option value="">— chọn mã NS —</option>' + L.map(x => `<option value="${esc(x.ma)}">${esc(x.ma)} — ${esc(x.ten)}</option>`).join("") }
     catch (e) { box.querySelector(".kb-kq").className = "res er kb-kq"; box.querySelector(".kb-kq").textContent = "Lỗi tải mã NS: " + e.message }
