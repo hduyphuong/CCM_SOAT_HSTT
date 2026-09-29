@@ -258,7 +258,7 @@ table.bctc tr.l1 td{background:#f5f3fa!important}table.bctc tr.tong td{backgroun
 <div class="lay">
 <aside class="sb">
   <div class="sb-brand"><div class="logo">CCM</div><div><b>CCM · HSTT</b><span>Cost &amp; Contract Management</span></div></div>
-  <nav><div class="grp">Nghiệp vụ</div><button class="on" data-t="nap" data-ti="Nạp &amp; duyệt hồ sơ thanh toán" data-su="Kéo thả HSTT — engine tự phân loại, kiểm 4 lớp; anh duyệt rồi mới ghi sổ"><span class="nn">1</span>Nạp &amp; duyệt</button><button class="" data-t="hs" data-ti="Hồ sơ đã nạp" data-su="Lịch sử hồ sơ của dự án — bấm một dòng để xem chi tiết và duyệt tiếp"><span class="nn">2</span>Hồ sơ đã nạp</button><button class="" data-t="nen" data-ti="Hồ sơ nền" data-su="BoQ, ngân sách, gói thầu, báo giá, hợp đồng, quyết toán — Excel/PDF, tự xếp đúng folder"><span class="nn">3</span>Hồ sơ nền</button><div class="grp">Báo cáo</div><button class="" data-t="bc" data-ti="Tổng quan dự án" data-su="Bức tranh tài chính tại ngày chốt số liệu — đọc từ file khung Excel"><span class="nn">4</span>Tổng quan</button><button class="" data-t="hd" data-ti="Hợp đồng" data-su="Doanh thu (CĐT) và chi phí (đội, thầu phụ, nhà cung cấp)"><span class="nn">5</span>Hợp đồng</button><button class="" data-t="bill" data-ti="Bill thanh toán theo kỳ" data-su="Các đợt thanh toán của từng hợp đồng"><span class="nn">6</span>Bill thanh toán</button><button class="" data-t="bctc" data-ti="Báo cáo tài chính" data-su="Doanh thu · chi phí theo mã ngân sách · lợi nhuận"><span class="nn">7</span>BC Tài chính</button><button class="" data-t="dt" data-ti="Đối tác" data-su="Chủ đầu tư, đội thi công, thầu phụ, nhà cung cấp và giao dịch theo hợp đồng"><span class="nn">8</span>Đối tác</button></nav>
+  <nav><div class="grp">Nghiệp vụ</div><button class="on" data-t="nap" data-ti="Nạp &amp; duyệt hồ sơ thanh toán" data-su="Kéo thả HSTT — engine tự phân loại, kiểm 4 lớp; anh duyệt rồi mới ghi sổ"><span class="nn">1</span>Nạp &amp; duyệt</button><button class="" data-t="hs" data-ti="Hồ sơ đã nạp" data-su="Lịch sử hồ sơ của dự án — bấm một dòng để xem chi tiết và duyệt tiếp"><span class="nn">2</span>Hồ sơ đã nạp</button><button class="" data-t="nen" data-ti="Hồ sơ nền" data-su="BoQ, ngân sách, gói thầu, báo giá, hợp đồng, quyết toán — Excel/PDF, tự xếp đúng folder"><span class="nn">3</span>Hồ sơ nền</button><button class="" data-t="sogia" data-ti="So giá — Hợp đồng ↔ Ngân sách · PTLN" data-su="Nghiệp vụ độc lập: kiểm đơn giá / khối lượng HĐ so với ngân sách, so giá các đơn vị nhận thầu — chỉ đọc khung"><span class="nn">4</span>So giá</button><div class="grp">Báo cáo</div><button class="" data-t="bc" data-ti="Tổng quan dự án" data-su="Bức tranh tài chính tại ngày chốt số liệu — đọc từ file khung Excel"><span class="nn">5</span>Tổng quan</button><button class="" data-t="hd" data-ti="Hợp đồng" data-su="Doanh thu (CĐT) và chi phí (đội, thầu phụ, nhà cung cấp)"><span class="nn">6</span>Hợp đồng</button><button class="" data-t="bill" data-ti="Bill thanh toán theo kỳ" data-su="Các đợt thanh toán của từng hợp đồng"><span class="nn">7</span>Bill thanh toán</button><button class="" data-t="bctc" data-ti="Báo cáo tài chính" data-su="Doanh thu · chi phí theo mã ngân sách · lợi nhuận"><span class="nn">8</span>BC Tài chính</button><button class="" data-t="dt" data-ti="Đối tác" data-su="Chủ đầu tư, đội thi công, thầu phụ, nhà cung cấp và giao dịch theo hợp đồng"><span class="nn">9</span>Đối tác</button></nav>
   <div class="eng"><span class="pill"><i class="dot" id="dot"></i><span id="st">chưa nối engine</span></span><input id="eng" title="Địa chỉ engine trên máy anh"></div>
 </aside>
 <div class="ctw">
@@ -277,7 +277,7 @@ table.bctc tr.l1 td{background:#f5f3fa!important}table.bctc tr.tong td{backgroun
   <section id="t-hs" class="hide"><div class="card"><div class="right"><table id="tb-hs"></table></div></div>
     <p class="note">Bấm vào một dòng để xem chi tiết hồ sơ (cờ, số liệu, kế hoạch ghi sổ) và duyệt tiếp nếu còn chờ.</p><div id="hs-ct"></div></section>
   <section id="t-nen" class="hide dr"></section><section id="t-bc" class="hide dr"></section><section id="t-hd" class="hide dr"></section><section id="t-bill" class="hide dr"></section>
-  <section id="t-bctc" class="hide dr"></section><section id="t-dt" class="hide dr"></section>
+  <section id="t-bctc" class="hide dr"></section><section id="t-sogia" class="hide dr"></section><section id="t-dt" class="hide dr"></section>
 </main>
 <div class="footer">CCM · Soát hồ sơ thanh toán &amp; báo cáo dự án &nbsp;|&nbsp; dữ liệu chỉ nằm trên máy anh — trang không lưu số liệu lên mạng</div>
 </div></div>
@@ -300,8 +300,8 @@ async function ping() {
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   $("#pg-t").innerHTML = b.dataset.ti; $("#pg-h").innerHTML = b.dataset.ti; $("#pg-s").textContent = b.dataset.su; window.scrollTo(0, 0);
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
-  ["nap", "hs", "nen", "bc", "hd", "bill", "bctc", "dt"].forEach(t => $("#t-" + t).classList.toggle("hide", t !== b.dataset.t));
-  if (b.dataset.t === "hs") hoSo(); if (b.dataset.t === "nen") tabNen();
+  ["nap", "hs", "nen", "sogia", "bc", "hd", "bill", "bctc", "dt"].forEach(t => $("#t-" + t).classList.toggle("hide", t !== b.dataset.t));
+  if (b.dataset.t === "hs") hoSo(); if (b.dataset.t === "nen") tabNen(); if (b.dataset.t === "sogia") tabSoGia();
   if (TAB_DAU_RA[b.dataset.t] && !DL) $("#t-" + b.dataset.t).innerHTML = '<div class="sk" style="height:460px"></div>';
   if (TAB_DAU_RA[b.dataset.t]) TAB_DAU_RA[b.dataset.t]().catch(e => $("#t-" + b.dataset.t).innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`);
 });
@@ -460,10 +460,11 @@ async function hoSo() {
     });
   } catch (e) { $("#tb-hs").innerHTML = `<tr><td class="empty">${esc(e.message)}</td></tr>` }
 }
-$("#da").onchange = () => { DL = null; const t = document.querySelector("nav button.on").dataset.t; if (TAB_DAU_RA[t]) TAB_DAU_RA[t]() };
+$("#da").onchange = () => { DL = null; const t = document.querySelector("nav button.on").dataset.t; if (TAB_DAU_RA[t]) TAB_DAU_RA[t](); if (t === "sogia") { SG.kq = null; tabSoGia() } };
 ping();
 </script>
 <script src="bao_cao.js"></script>
 <script src="nen.js"></script>
+<script src="hd_ns.js"></script>
 </body>
 </html>

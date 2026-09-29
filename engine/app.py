@@ -8,12 +8,14 @@ Trang (GitHub Pages / file local) gọi vào đây. Dữ liệu CHỈ nằm trê
   POST /nap-nen {du_an, ten, b64, loai, ma_dt, loai_dt, goi, ghi_chu} → lưu BoQ/NS/gói/báo giá/HĐ/QT đúng folder
   POST /doc-scan {du_an, ten, b64} → HSTT chỉ có bản scan: AI đọc số (chạy nền) rồi soát như Excel
   POST /doan-hstt {du_an, ten} · POST /dinh-kem {du_an, id, ten, b64} → PDF bản ký gắn vào HSTT Excel cùng HĐ + đợt
-  GET  /du-lieu?du_an=X           → ĐẦU RA: hợp đồng · bill · báo cáo tài chính · đối tác · dòng tiền (đọc R1…R7 của file khung)"""
+  GET  /du-lieu?du_an=X           → ĐẦU RA: hợp đồng · bill · báo cáo tài chính · đối tác · dòng tiền (đọc R1…R7 của file khung)
+  GET  /hd-ns-ds?du_an=X · GET /hd-ns?du_an=X&ma_hd=HD-.. | &nen_id=..  → SO GIÁ: kiểm HĐ ↔ ngân sách (CHỈ ĐỌC khung, nghiệp vụ độc lập)
+  GET  /ptln?du_an=X&ds=khung|HD-a,nen|<id>  → PTLN: so giá nhiều đơn vị nhận thầu ↔ NS ↔ BoQ CĐT (chỉ đọc)"""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json, os, sys, base64, datetime as dt, threading, traceback
 from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC, cay as C, nen as NEN, nhap_khung as NK, doc_scan as DS, khai_bao as KB
+import doc_hstt as D, kiem as K, ghi_so as G, bao_cao as BC, cay as C, nen as NEN, nhap_khung as NK, doc_scan as DS, khai_bao as KB, hd_ns as HN
 
 PORT = 8765
 # VỊ TRÍ DỮ LIỆU — chỉ ghi ở máy này (engine/cau_hinh_may.json, không lên git): {"DATA": "<thư mục dữ liệu>"}.
@@ -320,6 +322,13 @@ class H(BaseHTTPRequestHandler):
             if u.path == "/ma-ns": return self._tra(200, KB.ds_ma_ns(du_an()[q["du_an"]]["khung"]))
             if u.path == "/du-lieu": return self._tra(200, du_lieu(q["du_an"]))
             if u.path == "/danh-muc": return self._tra(200, NEN.danh_muc(du_an()[q["du_an"]]["khung"]))
+            if u.path == "/hd-ns-ds": return self._tra(200, HN.ds_nguon(du_an()[q["du_an"]]["khung"], NEN.doc_so(DATA, q["du_an"])))
+            if u.path == "/hd-ns":
+                kh = du_an()[q["du_an"]]["khung"]
+                return self._tra(200, HN.kiem(kh, rec_nen=NEN.doc_so(DATA, q["du_an"])[q["nen_id"]]) if q.get("nen_id") else HN.kiem(kh, q["ma_hd"]))
+            if u.path == "/ptln":
+                nguon = [tuple(x.split("|", 1)) for x in q["ds"].split(",") if "|" in x]
+                return self._tra(200, HN.ptln(du_an()[q["du_an"]]["khung"], nguon, NEN.doc_so(DATA, q["du_an"])))
             if u.path == "/ho-so-nen": return self._tra(200, sorted(NEN.doc_so(DATA, q["du_an"]).values(), key=lambda r: r["luc"], reverse=True))
             self._tra(404, dict(loi="không có đường dẫn này"))
         except Exception as e: traceback.print_exc(); self._tra(500, dict(loi=str(e)))
