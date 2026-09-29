@@ -20,6 +20,10 @@ def _tim(ws, col, gt, tu, den=5000):
         if str(ws.Range(f"{col}{r}").Value or "").strip() == gt: return r
     return None
 
+def _chuan_so(s):
+    """Số HĐ để so khớp: bỏ dấu, chỉ giữ chữ + số, viết hoa (HĐGK = HDGK)."""
+    import nen, re; return re.sub(r"[^A-Z0-9]", "", nen.khong_dau(str(s or "")).upper())
+
 def dong_hop_le(bang):
     """Dòng lá của bảng đơn giá (bỏ dòng nhóm / dòng cộng). Dòng chỉ có thành tiền ⇒ KL 1, đơn giá = thành tiền (gói)."""
     import re; out = []
@@ -51,9 +55,15 @@ def ghi_hd(khung, da, rec, sua, thu_muc_backup):
     try:
         wb = app.Workbooks.Open(os.path.abspath(khung)); w1, wh, wc = wb.Worksheets("N1_DanhMuc"), wb.Worksheets(sh_hd), wb.Worksheets(sh_ct)
         ma_hd = "HD-CDT" if cdt else f"HD-{ma_dt}"
-        if _tim(wh, "A", ma_hd, 2):
-            wb.Close(False); wb = None
-            return dict(ok=False, ly_do=f"{ma_hd} đã có trong khung — phụ lục/điều chỉnh HĐ sẽ xử lý ở bước sau, không ghi đè", backup=bk)
+        if _tim(wh, "A", ma_hd, 2):                                       # 1 đối tác có thể có NHIỀU HĐ (vd Âu Nam: thuê máy photo + văn phòng phẩm) — anh 29/09
+            c_so = T.cot(T.COT_HD[sh_hd])["so_hd"]; so_moi = _chuan_so(a.get("so_hd"))
+            cua_dt = [r for r in range(2, _dong_cuoi(wh, "A", 1) + 1) if str(wh.Range(f"A{r}").Value or "") == ma_hd or str(wh.Range(f"A{r}").Value or "").startswith(ma_hd + "-")]
+            if cdt or not so_moi or any(_chuan_so(wh.Range(f"{c_so}{r}").Value) == so_moi for r in cua_dt):
+                wb.Close(False); wb = None
+                return dict(ok=False, ly_do=f"{ma_hd} đã có HĐ số này trong khung — phụ lục/điều chỉnh HĐ xử lý riêng, không ghi đè", backup=bk)
+            n = 2
+            while _tim(wh, "A", f"{ma_hd}-{n}", 2): n += 1
+            ma_hd = f"{ma_hd}-{n}"
         # N1: thông tin dự án (khung trống) + đối tác mới
         if str(w1.Range("A3").Value or "") in ("", "MAU_TRONG"): w1.Range("A3").Value = da
         if str(w1.Range("B3").Value or "") in ("", "(tên dự án)") and a.get("du_an"): w1.Range("B3").Value = a["du_an"]
@@ -119,6 +129,11 @@ def ghi_phu_luc(khung, da, rec, thu_muc_backup):
     pythoncom.CoInitialize(); app = w32.DispatchEx("Excel.Application"); app.Visible = False; app.DisplayAlerts = False; wb = None
     try:
         wb = app.Workbooks.Open(os.path.abspath(khung)); wh, wc = wb.Worksheets(sh_hd), wb.Worksheets(sh_ct); cot = T.cot(T.COT_HD[sh_hd])
+        if not cdt and a.get("so_hd_goc"):                                # đối tác nhiều HĐ ⇒ PL gắn vào HĐ có SỐ = số HĐ gốc ghi trên PL
+            goc = _chuan_so(a["so_hd_goc"])
+            ma_hd = next((str(wh.Range(f"A{r}").Value) for r in range(2, _dong_cuoi(wh, "A", 1) + 1)
+                          if (str(wh.Range(f"A{r}").Value or "") == ma_hd or str(wh.Range(f"A{r}").Value or "").startswith(ma_hd + "-"))
+                          and _chuan_so(wh.Range(f"{cot['so_hd']}{r}").Value) == goc), ma_hd)
         if not _tim(wh, "A", ma_hd, 2):
             wb.Close(False); wb = None; return dict(ok=False, ly_do=f"Chưa có HĐ gốc {ma_hd} trong khung — duyệt HĐ gốc trước", backup=bk)
         so_pl_cu = [str(wh.Range(f"{cot['so_hd']}{r}").Value or "").strip() for r in range(2, _dong_cuoi(wh, "A", 1) + 1)

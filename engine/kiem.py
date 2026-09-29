@@ -81,6 +81,13 @@ def phan_loai(hs, k):
         t = _chuan_ten(k["doi_tac"].get(h["ma_doi_tac"], ("",))[0])
         if t and ten: diem.append((len(t & ten) / len(t), m))
     theo_ten = max(diem)[1] if diem and max(diem)[0] >= 0.75 else None
+    cung = [m for d_, m in diem if theo_ten and d_ == max(diem)[0]]          # các HĐ cùng đối tác (điểm tên như nhau)
+    if len(cung) > 1:
+        if theo_so in cung: theo_ten = theo_so
+        else:
+            co.append(("CHAN", "Hồ sơ", cv["o"].get("so_hd", "COVER"), cv["so_hd"] or "—", ", ".join(k["hd"][m]["so_hd"] for m in cung)[:80],
+                       f"Đối tác có {len(cung)} HĐ — số HĐ trên hồ sơ không khớp HĐ nào, không xác định được hồ sơ thuộc HĐ nào"))
+            return dict(ma_hd=None, loai_doi_tac=None, loai_hs=None), co
     ma_hd = theo_ten or theo_so
     if theo_so and theo_ten and theo_so != theo_ten:
         co.append(("CHAN", "Hồ sơ", cv["o"].get("so_hd", "COVER"), cv["so_hd"], k["hd"][theo_ten]["so_hd"],
