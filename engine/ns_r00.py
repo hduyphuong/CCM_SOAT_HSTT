@@ -43,6 +43,66 @@ def doc_r00(path):
                                            dvt="lot", kl=1, dg=con, tt=con, nguon="R00 BCTC cột F (cân bằng theo mã NS)"))
     return dict(ma_ns=ma_ns, dong=dong, tong=tong, tong_dt=tong_dt, ma_la=lech_cv, tong_dong=sum(d["tt"] for d in dong))
 
+# ── MẪU R2-BCTC (file kiểm soát chi phí nhiều phiên bản NS: 'A. Phantichloinhuan' + 'QSUM') — anh 30/09: không có R00, chỉ có NS cập nhật ──
+def la_mau_r2bctc(path):
+    try:
+        wb = openpyxl.load_workbook(path, read_only=True); ok = "A. Phantichloinhuan" in wb.sheetnames and "QSUM" in wb.sheetnames; wb.close(); return ok
+    except Exception: return False
+def la_mau(path): return la_mau_r00(path) or la_mau_r2bctc(path)
+def doc(path): return doc_r00(path) if la_mau_r00(path) else doc_r2bctc(path)
+
+def doc_r2bctc(path):
+    """Lấy PHIÊN BẢN NS MỚI NHẤT (cột 'Ngân sách…' ngoài cùng bên phải có số) ở 'A. Phantichloinhuan':
+    mã NS (cột C) + giá trị = tổng theo mã; chi tiết dòng = QSUM (cột B mã NS) theo đúng cột thành tiền mà phiên bản đó cộng
+    (đọc từ công thức SUMIF của cột phiên bản) ⇒ KL / ĐG cùng nhóm cột; mã không có chi tiết ⇒ dòng cân bằng."""
+    from openpyxl.utils import get_column_letter as L
+    wf = openpyxl.load_workbook(path); wv = openpyxl.load_workbook(path, data_only=True)
+    a, av, qf, qv = wf["A. Phantichloinhuan"], wv["A. Phantichloinhuan"], wf["QSUM"], wv["QSUM"]
+    hang = next(r for r in range(1, 20) if sum(1 for c in range(1, 30) if _kd(av.cell(r, c).value).startswith("ngan sach")) >= 2)
+    rows = list(range(hang + 1, a.max_row + 1))
+    r_cp = next(r for r in rows if _kd(av[f"D{r}"].value).strip() == "chi phi")
+    r_dt = next((r for r in rows if _kd(av[f"D{r}"].value).strip() == "doanh thu"), None)
+    cot = [c for c in range(1, 30) if _kd(av.cell(hang, c).value).startswith("ngan sach") and isinstance(av.cell(r_cp, c).value, (int, float))][-1]
+    C = L(cot); ten_pb = re.sub(r"\s+", " ", str(av.cell(hang, cot).value)).strip()
+    ma_ns, nhom = [], "B.1"
+    for r in rows:
+        b = str(av[f"B{r}"].value or "").strip()
+        if re.fullmatch(r"B\.\d", b): nhom = {"B.5": "B.3"}.get(b, b)
+        m = av[f"C{r}"].value
+        if m and re.match(r"^[A-Za-z]+_", str(m).strip()):
+            ma_ns.append(dict(ma=str(m).strip(), ten=str(av[f"D{r}"].value or "").strip(), nhom=nhom, dt=0, ns=_so(av[f"{C}{r}"].value) or 0))
+    vc = None                                                          # cột thành tiền QSUM mà phiên bản này cộng: SUMIF(QSUM!$B:$B,…,QSUM!$X:$X)
+    for r in rows:
+        mm = re.search(r"QSUM!\$?B:\$?B,[^,]+,QSUM!\$?([A-Z]+):", str(a[f"{C}{r}"].value or ""))
+        if mm: vc = mm.group(1); break
+    dong = []
+    if vc:
+        tieu = {c.column_letter: _kd(c.value) for c in qf[8] if c.value}
+        for r in range(9, qf.max_row + 1):
+            mn, tt = qv[f"B{r}"].value, _so(qv[f"{vc}{r}"].value)
+            if not mn or not tt or not re.match(r"^[A-Za-z]+_", str(mn)): continue
+            refs = re.findall(r"\$?([A-Z]{1,2})\$?%d(?!\d)" % r, str(qf[f"{vc}{r}"].value or ""))
+            kl_c = next((x for x in refs if tieu.get(x, "").startswith("khoi luong")), None)
+            dg_c = next((x for x in refs if x != kl_c), None)
+            kl = _so(qv[f"{kl_c}{r}"].value) if kl_c else None
+            dg = _so(qv[f"{dg_c}{r}"].value) if dg_c else None
+            goi = not (kl and dg and abs(kl * dg - tt) < 1)
+            if goi: kl, dg = 1, tt
+            dvt = "lot" if goi else str(qv[f"F{r}"].value or "lot").strip().replace("bao 50kg", "bao")
+            dong.append(dict(ma_ns=str(mn).strip(), ma_cv=str(qv[f"D{r}"].value or f"{mn}-r{r}").strip(), ds=str(qv[f"E{r}"].value or "").strip(),
+                             dvt=dvt, kl=kl, dg=dg, tt=tt, nguon=f"{ten_pb} · QSUM dòng {r} (cột {vc})"))
+    for m in ma_ns:                                                    # cân bằng theo mã NS ⇒ Σ luôn = tổng phiên bản NS
+        s = sum(d["tt"] for d in dong if d["ma_ns"] == m["ma"]); con = round(m["ns"] - s, 2)
+        if abs(con) >= 1:
+            dong.append(dict(ma_ns=m["ma"], ma_cv=m["ma"], ds=m["ten"] if not s else f"{m['ten']} — phần NS chưa chi tiết theo mã công việc",
+                             dvt="lot", kl=1, dg=con, tt=con, nguon=f"{ten_pb} · A. Phantichloinhuan cột {C} (cân bằng theo mã NS)"))
+    lech = sorted({d["ma_ns"] for d in dong} - {m["ma"] for m in ma_ns})
+    tong = _so(av[f"{C}{r_cp}"].value); tong_dt = _so(av[f"{C}{r_dt}"].value) if r_dt else None
+    wf.close(); wv.close()
+    return dict(ma_ns=ma_ns, dong=dong, tong=tong, tong_dt=tong_dt, ma_la=lech, tong_dong=sum(d["tt"] for d in dong), phien_ban=ten_pb,
+                nguon_tong=f"A. Phantichloinhuan {C}{r_cp} ({ten_pb})",
+                mo_ta_mau=f"Mẫu ngân sách R2-BCTC nội bộ (A. Phantichloinhuan + QSUM) — lấy phiên bản mới nhất '{ten_pb}', chi tiết QSUM cột {vc or '—'} · bộ đọc riêng, KHÔNG dùng AI")
+
 def nhom_cv(dong):
     """Nhóm công việc = CODE công việc (mỗi CODE 1 nhóm) — khoá nối NS ↔ dòng HĐ."""
     out = {}
@@ -51,16 +111,16 @@ def nhom_cv(dong):
 
 def ket_qua_ai_gia(path):
     """Kết quả dạng 'AI' để đi chung luồng hồ sơ nền (thẻ, cờ) — nhưng số lấy từ bộ đọc tất định."""
-    k = doc_r00(path)
-    return dict(loai="NGAN_SACH", ly_do_loai="Mẫu ngân sách R00 nội bộ (sheet BCTC + 01. PhanTichBOQ) — bộ đọc riêng, KHÔNG dùng AI",
+    k = doc(path)
+    return dict(loai="NGAN_SACH", ly_do_loai=k.get("mo_ta_mau") or "Mẫu ngân sách R00 nội bộ (sheet BCTC + 01. PhanTichBOQ) — bộ đọc riêng, KHÔNG dùng AI",
                 bang=[dict(stt=d["ma_cv"], noi_dung=d["ds"], dvt=d["dvt"], kl=d["kl"], don_gia=d["dg"], thanh_tien=d["tt"]) for d in k["dong"]],
                 tong_ghi_tren_file=k["tong"], khong_chac=[f"Mã NS có trong BOQ nhưng không có trong BCTC: {', '.join(k['ma_la'])}"] if k["ma_la"] else [],
                 ghi_chu=f"{len(k['ma_ns'])} mã NS · {len(k['dong'])} dòng · tổng NS {k['tong']:,.0f} · doanh thu phân bổ {k['tong_dt'] or 0:,.0f}", nguon={}), k
 
 def ghi_r00(khung, path, ngay_hl, thu_muc_backup):
     import pythoncom, win32com.client as w32
-    k = doc_r00(path); nh = nhom_cv(k["dong"])
-    if not k["tong"] or abs(k["tong_dong"] - k["tong"]) > 1: return dict(ok=False, ly_do=f"Σ dòng {k['tong_dong']:,.0f} ≠ tổng BCTC {k['tong'] or 0:,.0f}")
+    k = doc(path); nh = nhom_cv(k["dong"])
+    if not k["tong"] or abs(k["tong_dong"] - k["tong"]) > 1: return dict(ok=False, ly_do=f"Σ dòng {k['tong_dong']:,.0f} ≠ tổng NS trên file {k['tong'] or 0:,.0f}")
     os.makedirs(thu_muc_backup, exist_ok=True)
     bk = os.path.join(thu_muc_backup, f"{os.path.splitext(os.path.basename(khung))[0]}_truoc_nhap_NS_{dt.datetime.now():%Y%m%d_%H%M%S}.xlsx"); shutil.copy2(khung, bk)
     serial = (ngay_hl - dt.date(1899, 12, 30)).days
@@ -93,11 +153,11 @@ def ghi_r00(khung, path, ngay_hl, thu_muc_backup):
         w9 = wb.Worksheets("90_Check")                                # vế phải phép kiểm #1 = tổng NS trên file R00 gốc
         for r in range(2, 80):
             if str(w9.Range(f"B{r}").Value or "").startswith("Tổng ngân sách R00"):
-                w9.Range(f"D{r}").Value = k["tong"]; w9.Range(f"G{r}").Value = f"{os.path.basename(path)[:60]} · BCTC dòng Lợi Nhuận"; break
+                w9.Range(f"D{r}").Value = k["tong"]; w9.Range(f"G{r}").Value = f"{os.path.basename(path)[:60]} · {k.get('nguon_tong') or 'BCTC dòng Lợi Nhuận'}"; break
         app.CalculateFullRebuild()
         f = app.WorksheetFunction; loi = []
         tong = f.SumIfs(w2.Range("L2:L5000"), w2.Range("C2:C5000"), "GOC")
-        if abs(tong - k["tong"]) > 1: loi.append(f"Σ N2 {tong:,.0f} ≠ BCTC {k['tong']:,.0f}")
+        if abs(tong - k["tong"]) > 1: loi.append(f"Σ N2 {tong:,.0f} ≠ tổng NS trên file {k['tong']:,.0f}")
         for m in k["ma_ns"]:
             s = f.SumIfs(w2.Range("L2:L5000"), w2.Range("D2:D5000"), m["ma"])
             if abs(s - m["ns"]) > 1: loi.append(f"{m['ma']}: {s:,.0f} ≠ {m['ns']:,.0f}")
@@ -105,7 +165,7 @@ def ghi_r00(khung, path, ngay_hl, thu_muc_backup):
             wb.Close(False); wb = None; return dict(ok=False, ly_do="Tự kiểm KHÔNG KHỚP — không lưu: " + "; ".join(loi[:5]), backup=bk)
         wb.Save(); wb.Close(False); wb = None
         return dict(ok=True, ma_hd="NS-R00", so_dong=len(k["dong"]), so_ma_ns=len(k["ma_ns"]), so_nhom=len(nh), tong=tong, backup=bk,
-                    thong_bao=f"Đã ghi ngân sách R00: {len(k['ma_ns'])} mã NS · {len(nh)} nhóm công việc · {len(k['dong'])} dòng · Σ {tong:,.0f} (= BCTC) · đã backup")
+                    thong_bao=f"Đã ghi {k.get('phien_ban') or 'ngân sách R00'}: {len(k['ma_ns'])} mã NS · {len(nh)} nhóm công việc · {len(k['dong'])} dòng · Σ {tong:,.0f} (= tổng NS trên file) · đã backup")
     finally:
         if wb is not None: wb.Close(False)
         app.Quit()

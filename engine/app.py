@@ -177,7 +177,7 @@ def xu_ly_nhap_khung(b):
         if rec["loai"] == "NGAN_SACH":                                   # ngân sách R00 theo mẫu nội bộ — bộ đọc tất định
             import ns_r00, datetime as _d
             f = os.path.join(DATA, rec["duong_dan"])
-            if not ns_r00.la_mau_r00(f): raise ValueError("File ngân sách không theo mẫu R00 nội bộ (cần sheet BCTC + 01. PhanTichBOQ)")
+            if not ns_r00.la_mau(f): raise ValueError("File ngân sách không theo mẫu nội bộ (R00: BCTC + 01. PhanTichBOQ · hoặc R2-BCTC: A. Phantichloinhuan + QSUM)")
             hd_cdt = [h for h in NEN.danh_muc(cfg["khung"])["hop_dong"] if h["ben"] == "CĐT"]
             kq = ns_r00.ghi_r00(cfg["khung"], f, _d.date.today(), os.path.join(os.path.dirname(cfg["khung"]), "_backup"))
             NEN.sua_rec(DATA, da, i, ket_qua_khung=kq, **({"trang_thai": "DA_NHAP", "da_nhap_khung": True} if kq["ok"] else {}))
