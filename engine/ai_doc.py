@@ -37,7 +37,9 @@ def trich_excel(path, toi_da=1500):
             if n >= toi_da: out.append("…(cắt bớt)"); break
     wb.close(); return "\n".join(out)
 
-def doc(path, cty="(chưa khai báo)", schema=None, huong_dan=None, timeout=1500, model=None, ngu_canh=None):
+MODEL_MAC_DINH, EFFORT_MAC_DINH = "claude-sonnet-5", "high"    # anh chốt 30/09 — trải nghiệm rồi đổi khi cần (Opus dùng khi thấy Sonnet sai)
+
+def doc(path, cty="(chưa khai báo)", schema=None, huong_dan=None, timeout=1500, model=None, effort=None, ngu_canh=None):
     """Trả (ket_qua_dict, meta). Lỗi/hết hạn mức ⇒ raise RuntimeError có thông điệp dễ hiểu."""
     d = tempfile.mkdtemp(prefix="ccm_ai_"); duoi = os.path.splitext(path)[1].lower()
     try:
@@ -54,7 +56,8 @@ def doc(path, cty="(chưa khai báo)", schema=None, huong_dan=None, timeout=1500
             yeu_cau += " TRƯỚC KHI đọc hồ sơ, đọc file ngu_canh.txt (danh sách hợp đồng + dòng HĐ đang có trong sổ, và lỗi của lần đọc trước nếu có) để ghép đúng."
         cmd = ["claude", "-p", yeu_cau, "--output-format", "json", "--json-schema", json.dumps(schema or SCHEMA_NEN, ensure_ascii=False),
                "--system-prompt", (huong_dan or HUONG_DAN).format(cty=cty), "--setting-sources", "project", "--tools", "Read",
-               "--allowedTools", "Read", "--max-turns", "14", "--no-session-persistence"] + (["--model", model] if model else [])
+               "--allowedTools", "Read", "--max-turns", "14", "--no-session-persistence",
+               "--model", model or MODEL_MAC_DINH, "--effort", effort or EFFORT_MAC_DINH]
         t0 = time.time()
         p = subprocess.run(cmd, cwd=d, capture_output=True, text=True, encoding="utf-8", timeout=timeout, shell=(os.name == "nt"),
                            creationflags=0x08000000 if os.name == "nt" else 0)          # CREATE_NO_WINDOW: engine chạy ẩn thì không bật cửa sổ đen
