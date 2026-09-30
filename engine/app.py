@@ -170,6 +170,7 @@ def xu_ly_nhap_khung(b):
     """Anh duyệt hồ sơ nền ⇒ ghi vào khung (HĐ CĐT / đối tác). Kiểm lại cờ CHẶN ngay trước khi ghi."""
     da, i = b["du_an"], b["id"]; cfg = du_an()[da]
     with KHOA:
+        NEN.soat_lai_pl(DATA, da, cfg["khung"])                          # phụ lục: cờ theo bảng giá ĐANG hiệu lực
         rec = NEN.doc_so(DATA, da)[i]
         if rec.get("trang_thai") != "CHO_DUYET": raise ValueError("Hồ sơ này không ở trạng thái chờ duyệt")
         if any(c["muc"] == "CHAN" for c in rec.get("co", [])): raise ValueError("Còn cờ CHẶN — chưa ghi khung được")
@@ -328,7 +329,10 @@ class H(BaseHTTPRequestHandler):
                 return self._tra(200, dict(p, don_vi=[{k: v for k, v in d.items() if k not in ("ai", "ai_meta")} | dict(bang=((d.get("ai") or {}).get("bang") or [])[:200])
                                                       for d in sorted(p["don_vi"].values(), key=lambda d: d["luc"])]))
             if u.path == "/so-gia/ptln": return self._tra(200, SG.so_sanh(DATA, q["du_an"], q["phien"], du_an()[q["du_an"]]["khung"]))
-            if u.path == "/ho-so-nen": return self._tra(200, sorted(NEN.doc_so(DATA, q["du_an"]).values(), key=lambda r: r["luc"], reverse=True))
+            if u.path == "/ho-so-nen":
+                try: NEN.soat_lai_pl(DATA, q["du_an"], du_an()[q["du_an"]]["khung"])
+                except Exception: traceback.print_exc()
+                return self._tra(200, sorted(NEN.doc_so(DATA, q["du_an"]).values(), key=lambda r: r["luc"], reverse=True))
             self._tra(404, dict(loi="không có đường dẫn này"))
         except Exception as e: traceback.print_exc(); self._tra(500, dict(loi=str(e)))
     def do_POST(self):

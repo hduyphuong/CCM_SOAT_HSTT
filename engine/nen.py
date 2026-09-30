@@ -239,10 +239,9 @@ def ap_ket_qua(data, da, i, khung, kq, meta):
     if moi_dt and loai in ("HD_DOI_TAC", "BAO_GIA", "QUYET_TOAN"): co.append(dict(muc="LUU_Y", mo_ta=f"Đối tác mới (chưa có trong khung) — app đề xuất mã {ma_dt}, loại {loai_dt}"))
     la_pl = str(kq.get("loai") or "").startswith("PLHD") or bool(re.search(r"phu luc|plhd|^pl[ _.-]?\d", khong_dau(rec["ten"]).lower()))
     if la_pl and loai in ("HD_CDT", "HD_DOI_TAC"):                  # PHỤ LỤC chỉ duyệt SAU HĐ gốc — không bao giờ ghi thành HĐ gốc
-        ma_goc = "HD-CDT" if loai == "HD_CDT" else f"HD-{ma_dt}"
-        co = [c for c in co if not c["mo_ta"].startswith(("Không đọc được giá trị HĐ", "Không đọc được số hợp đồng"))]   # PL không cần giá trị riêng
-        co.insert(0, dict(muc="CHAN", mo_ta=f"Phụ lục HĐ — chưa có HĐ gốc {ma_goc} trong khung: anh duyệt HĐ gốc trước") if not any(h["ma_hd"] == ma_goc for h in dm["hop_dong"])
-                  else dict(muc="LUU_Y", mo_ta=f"Phụ lục của {ma_goc} — duyệt sẽ thêm dòng PHU_LUC + các đơn giá mới (giữ giá cũ để đối chiếu HSTT theo thời điểm)"))
+        import phu_luc as PL                                             # PL = điều chỉnh / bổ sung bảng giá HĐ theo thứ tự (anh 30/09)
+        co = [c for c in co if not c["mo_ta"].startswith(PL_BO)]
+        co = PL.co_phu_luc(khung, dict(rec, ai=kq, loai=loai, ma_doi_tac=ma_dt)) + co
     rel = thu_muc_dich(loai, ma_dt, loai_dt, rec.get("goi")) or "_HE_THONG/cho_phan_loai"
     with KHOA:
         s = doc_so(data, da); rec = s[i]; cu = os.path.join(data, rec["duong_dan"])
@@ -254,6 +253,21 @@ def ap_ket_qua(data, da, i, khung, kq, meta):
         rec.update(ai=kq, ai_meta=meta, co=co, la_phu_luc=la_pl, thong_ke=tk, loai=loai, loai_ten=LOAI[loai][0], ma_doi_tac=ma_dt, loai_doi_tac=loai_dt, doi_tac_moi=moi_dt,
                    can_nhap=loai in CAN_NHAP, trang_thai="DA_NHAP" if rec.get("da_nhap_khung") else ("SAI_NOI" if kq.get("loai") == "HSTT" else ("CHO_DUYET" if loai in CAN_NHAP else "DA_LUU")), loi=None, luc_ai=dt.datetime.now().isoformat(timespec="seconds"))
         s[i] = rec; ghi_so_nen(data, da, s)
+
+PL_BO = ("Không đọc được giá trị HĐ", "Không đọc được số hợp đồng", "Σ bảng đơn giá", "Phụ lục HĐ — chưa có HĐ gốc", "Phụ lục của ")   # cờ HĐ gốc không áp cho PL
+def soat_lai_pl(data, da, khung):
+    """Phụ lục đang chờ duyệt ⇒ đánh giá lại theo bảng giá đang hiệu lực mỗi khi khung đổi (duyệt PL01 xong thì PL02 tự hết chặn, không phải AI đọc lại)."""
+    import phu_luc as PL
+    mt = os.path.getmtime(khung); s = doc_so(data, da)
+    can = [i for i, r in s.items() if r.get("la_phu_luc") and r.get("trang_thai") == "CHO_DUYET" and r.get("loai") in ("HD_CDT", "HD_DOI_TAC") and r.get("pl_mtime") != mt]
+    for i in can:
+        try: moi = PL.co_phu_luc(khung, s[i])
+        except Exception as e: moi = [dict(muc="CHAN", mo_ta=f"Không đối chiếu được phụ lục với khung: {e}"[:300], pl=True)]
+        with KHOA:
+            s2 = doc_so(data, da); r = s2[i]
+            r["co"] = moi + [c for c in r.get("co", []) if not c.get("pl") and not c["mo_ta"].startswith(PL_BO)]; r["pl_mtime"] = mt
+            ghi_so_nen(data, da, s2)
+    return len(can)
 
 HANG = queue.Queue(); _CFG = {}
 def _tho():
