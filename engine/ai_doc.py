@@ -15,8 +15,9 @@ SCHEMA_NEN = {"type": "object", "properties": {
     "gia_tri_truoc_vat": N, "vat_pct": N, "gia_tri_sau_vat": N, "pct_tam_ung": N, "pct_tt_dot": N, "pct_tt_quyet_toan": N, "pct_giu_lai": N,
     "han_tt_ngay": I, "don_vi_han": {"type": ["string", "null"], "enum": ["LV", "LICH", None]}, "han_qt_ngay": I, "han_tra_gl_ngay": I, "bao_hanh_thang": I,
     "bang": {"type": "array", "items": DONG}, "tong_ghi_tren_file": N, "co_chu_ky": B, "co_dong_dau": B,
-    "nguon": {"type": "object", "additionalProperties": {"type": "string"}}, "khong_chac": {"type": "array", "items": {"type": "string"}}, "ghi_chu": S},
-    "required": ["loai", "ly_do_loai", "bang", "khong_chac"]}
+    "nguon": {"type": "object", "additionalProperties": {"type": "string"}}, "khong_chac": {"type": "array", "items": {"type": "string"}}, "ghi_chu": S,
+    "doc_duoc": {"type": "boolean"}},
+    "required": ["loai", "ly_do_loai", "bang", "khong_chac", "doc_duoc"]}
 HUONG_DAN = """Bạn là chuyên viên QS/CCM người Việt, đọc hồ sơ xây dựng để nhập vào sổ kiểm soát chi phí. Chính xác tuyệt đối về số.
 Công ty người dùng (nhà thầu thi công): {cty}. Công ty người dùng NHẬN thầu từ chủ đầu tư/thầu chính ⇒ phía CĐT (HD_CDT/PLHD_CDT, loai_doi_tac=CDT).
 Công ty người dùng GIAO việc cho đội/thầu phụ/nhà cung cấp ⇒ phía đối tác (HD_DOI_TAC/PLHD_DOI_TAC; DTC=đội thi công/tổ đội khoán nhân công,
@@ -24,7 +25,9 @@ NTP=thầu phụ pháp nhân, NCC=cung cấp vật tư/hàng hoá, DVK=dịch v�
 'ben_tra_tien' = bên THANH TOÁN tiền theo HĐ, 'ben_nhan_tien' = bên ĐƯỢC thanh toán (HĐ mua bán vật tư: bên MUA trả tiền; HĐ giao thầu/giao khoán: bên giao việc trả tiền).
 Quy tắc: tiền = số VND (không dấu phân cách); phần trăm = thập phân (10% → 0.1); ngày = YYYY-MM-DD; 'bang' = bảng khối lượng/đơn giá/ngân sách
 (mỗi dòng 1 hạng mục, bỏ dòng tiêu đề nhóm và dòng cộng); 'tong_ghi_tren_file' = số tổng in trên file để đối chiếu; 'nguon' ghi trang/ô lấy từng số tiền.
-Số hợp đồng chép NGUYÊN VĂN từng ký tự, giữ đủ chữ 'Đ' có gạch (HĐGK, HĐTC, HĐTP, HĐNT… — KHÔNG viết thành HGK/HDGK). Không có hoặc đọc không rõ ⇒ để null VÀ thêm tên trường vào 'khong_chac'. TUYỆT ĐỐI KHÔNG ĐOÁN SỐ."""
+Số hợp đồng chép NGUYÊN VĂN từng ký tự, giữ đủ chữ 'Đ' có gạch (HĐGK, HĐTC, HĐTP, HĐNT… — KHÔNG viết thành HGK/HDGK). Không có hoặc đọc không rõ ⇒ để null VÀ thêm tên trường vào 'khong_chac'. TUYỆT ĐỐI KHÔNG ĐOÁN SỐ.
+'doc_duoc': true CHỈ KHI công cụ Read đã thực sự mở và trả về nội dung file (dù nội dung khó đọc/thiếu vài trường thì vẫn true, các trường đó ghi null + khong_chac).
+'doc_duoc': false khi KHÔNG mở được file — file không tồn tại, rỗng, hỏng, hoặc công cụ Read báo lỗi bất kỳ lúc nào trong lúc đọc — dù chỉ 1 lần cũng phải false, TUYỆT ĐỐI KHÔNG được tự đoán/suy diễn 'loai' hay bất kỳ trường nào khác khi doc_duoc=false — mọi trường khác để null, 'bang' để [], 'ly_do_loai' ghi rõ lỗi Read gặp phải."""
 
 def trich_excel(path, toi_da=1500):
     """Excel ⇒ văn bản 'Sheet | ô: giá trị' (giá trị đã tính) để AI đọc; cắt bớt khi quá dài."""
@@ -44,7 +47,12 @@ def doc(path, cty="(chưa khai báo)", schema=None, huong_dan=None, timeout=1500
     d = tempfile.mkdtemp(prefix="ccm_ai_"); duoi = os.path.splitext(path)[1].lower()
     try:
         if duoi == ".pdf":
-            shutil.copy2(path, os.path.join(d, "hs.pdf"))
+            dich = os.path.join(d, "hs.pdf")
+            for lan in range(5):                                            # nạp hàng loạt ⇒ Drive đôi khi chưa đồng bộ kịp; copy rỗng thì đợi rồi thử lại
+                shutil.copy2(path, dich)
+                if os.path.getsize(dich) > 0: break
+                time.sleep(2)
+            else: raise RuntimeError(f"File rỗng sau 5 lần thử copy (Drive có thể chưa đồng bộ xong): {os.path.basename(path)} — thử Đọc lại sau ít phút")
             yeu_cau = "Đọc file hs.pdf trong thư mục hiện tại bằng công cụ Read, lần lượt theo tham số pages (tối đa 20 trang/lần) tới HẾT file, rồi trả kết quả."
         elif duoi in (".xlsx", ".xlsm"):
             open(os.path.join(d, "hs.txt"), "w", encoding="utf-8").write(trich_excel(path))      # KHÔNG nhét vào dòng lệnh: Windows giới hạn ~32k ký tự (WinError 206)

@@ -215,6 +215,8 @@ def xu_ly_ai(data, da, i, khung, cty):
     try: kq, meta = ai_doc.doc(f, cty=cty)
     except Exception as e:
         sua_rec(data, da, i, trang_thai="LOI_AI", loi=str(e)[:400]); return
+    if kq.get("doc_duoc") is False:                                          # AI không mở được file (lỗi Read/Drive chưa đồng bộ) — KHÔNG được coi là đã phân loại xong
+        sua_rec(data, da, i, trang_thai="LOI_AI", loi=("AI không đọc được nội dung file: " + (kq.get("ly_do_loai") or "không rõ lý do"))[:400]); return
     ap_ket_qua(data, da, i, khung, kq, meta)
 def ap_ket_qua(data, da, i, khung, kq, meta):
     """Áp kết quả AI: chuẩn hoá, đánh giá cờ, nhận đối tác, xếp file. Tách riêng để áp lại được mà không phải đọc lại."""
