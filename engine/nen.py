@@ -269,6 +269,100 @@ def soat_lai_pl(data, da, khung):
             ghi_so_nen(data, da, s2)
     return len(can)
 
+# ── DUYỆT TỪNG CỜ (anh chốt 30/09): anh xác nhận ✓ OK từng cờ, hoặc hỏi Agent kiểm lại ĐÚNG cờ đó — không phải đọc lại cả file ──
+def khoa_co(c): return f"{c['muc']}|{c['mo_ta']}"
+def chan_con(rec):
+    """Cờ CHẶN chưa được anh xác nhận ⇒ chưa ghi khung được. Cờ CHẶN số học của phụ lục (pl) chỉ hết bằng dữ liệu, không xác nhận tay."""
+    ok = rec.get("co_ok") or {}
+    return [c for c in rec.get("co", []) if c["muc"] == "CHAN" and (c.get("pl") or khoa_co(c) not in ok)]
+def xac_nhan_co(data, da, i, khoa, ly_do="", bo=False):
+    with KHOA:
+        s = doc_so(data, da); r = s[i]; co = next((c for c in r.get("co", []) if khoa_co(c) == khoa), None)
+        if co is None: raise ValueError("Cờ này không còn (hồ sơ vừa được soát lại) — anh tải lại trang")
+        ok = r.setdefault("co_ok", {})
+        if bo: ok.pop(khoa, None)
+        else:
+            if co["muc"] == "CHAN" and co.get("pl"): raise ValueError("Cờ CHẶN này là phép đối chiếu số của phụ lục — chỉ hết khi số liệu khớp (duyệt PL trước theo thứ tự, hoặc hỏi Agent sửa bảng)")
+            if co["muc"] == "CHAN" and not (ly_do or "").strip(): raise ValueError("Cờ CHẶN cần anh ghi lý do chấp nhận")
+            ok[khoa] = dict(ly_do=(ly_do or "").strip()[:500], luc=dt.datetime.now().isoformat(timespec="seconds"))
+        ghi_so_nen(data, da, s); return r
+
+SCHEMA_HOI = {"type": "object", "properties": {
+    "tra_loi": {"type": "string", "description": "Kết luận ngắn, tiếng Việt, có dẫn trang/dòng làm bằng chứng"},
+    "ket_luan": {"type": "string", "enum": ["SO_LIEU_DUNG", "DA_SUA", "KHONG_XAC_DINH"]},
+    "sua_truong": {"type": "object", "description": "Trường đầu hồ sơ cần sửa: {tên trường: giá trị đúng} — chỉ các trường đã có trong kết quả đọc"},
+    "sua_dong": {"type": "array", "items": {"type": "object", "properties": {
+        "stt": {"type": "string"}, "noi_dung": {"type": "string"}, "dvt": {"type": "string"}, "kl": {"type": ["number", "null"]},
+        "don_gia": {"type": ["number", "null"]}, "thanh_tien": {"type": ["number", "null"]}, "xoa": {"type": "boolean"}}, "required": ["stt"]},
+        "description": "Dòng bảng cần sửa (khớp theo STT) — chỉ nêu trường cần đổi; xoa=true để bỏ dòng đọc nhầm"},
+    "them_dong": {"type": "array", "items": {"type": "object", "properties": {
+        "stt": {"type": "string"}, "noi_dung": {"type": "string"}, "dvt": {"type": "string"}, "kl": {"type": ["number", "null"]},
+        "don_gia": {"type": ["number", "null"]}, "thanh_tien": {"type": ["number", "null"]}}, "required": ["stt", "noi_dung"]}}},
+    "required": ["tra_loi", "ket_luan"]}
+HUONG_DAN_HOI = ("Bạn là trợ lý soát hồ sơ hợp đồng / thanh toán xây dựng của {cty}. Nhiệm vụ HẸP: kiểm lại ĐÚNG MỘT cờ đối chiếu trên file hs.pdf / hs.txt "
+    "theo câu hỏi của người phụ trách (ghi trong ngu_canh.txt, kèm kết quả đọc lần trước). Chỉ đọc các trang liên quan tới cờ (dùng tham số pages), "
+    "không đọc lại toàn bộ nếu không cần. Chỉ SỬA khi thấy RÕ trên file — không đoán, không làm tròn lại số in trên file. "
+    "Trả lời tiếng Việt, ngắn gọn, luôn dẫn trang / dòng làm bằng chứng. Không có gì cần sửa ⇒ ket_luan SO_LIEU_DUNG và giải thích vì sao cờ hiện lên.")
+TRUONG_SUA = ("so_hd", "so_hd_goc", "ngay_ky", "doi_tac_ten", "ben_giao", "ben_nhan", "noi_dung", "dang_hd", "gia_tri_truoc_vat", "vat_pct", "gia_tri_sau_vat",
+              "pct_tam_ung", "pct_tt_dot", "pct_tt_quyet_toan", "pct_giu_lai", "han_tt_ngay", "don_vi_han", "han_qt_ngay", "han_tra_gl_ngay", "bao_hanh_thang",
+              "co_chu_ky", "co_dong_dau", "tong_ghi_tren_file")
+def hoi_co(data, da, i, khoa, ghi_chu):
+    """Xếp 1 câu hỏi Agent cho đúng 1 cờ — chạy nền, kết quả ghi vào rec['co_hoi'][khoa]."""
+    with KHOA:
+        s = doc_so(data, da); r = s[i]
+        if not any(khoa_co(c) == khoa for c in r.get("co", [])): raise ValueError("Cờ này không còn — anh tải lại trang")
+        if any(h.get("trang_thai") == "DANG" for h in (r.get("co_hoi") or {}).values()): raise ValueError("Agent đang kiểm 1 cờ khác của hồ sơ này — chờ xong rồi hỏi tiếp")
+        r.setdefault("co_hoi", {})[khoa] = dict(trang_thai="DANG", ghi_chu=(ghi_chu or "").strip()[:1000], luc=dt.datetime.now().isoformat(timespec="seconds"))
+        ghi_so_nen(data, da, s)
+    threading.Thread(target=_chay_hoi, args=(data, da, i, khoa, ghi_chu), daemon=True).start()
+    return dict(ok=True)
+def _chay_hoi(data, da, i, khoa, ghi_chu):
+    import ai_doc
+    try:
+        r = doc_so(data, da)[i]; f = os.path.join(data, r["duong_dan"]); a = r.get("ai") or {}
+        dau = {k: v for k, v in a.items() if k not in ("bang", "nguon", "khong_chac")}
+        ngu = (f"CỜ CẦN KIỂM: [{khoa.split('|', 1)[0]}] {khoa.split('|', 1)[1]}\n\nCÂU HỎI / GHI CHÚ CỦA NGƯỜI PHỤ TRÁCH: {ghi_chu or '(không ghi — kiểm xem cờ đúng hay sai)'}\n\n"
+               f"KẾT QUẢ ĐỌC LẦN TRƯỚC — đầu hồ sơ:\n{json.dumps(dau, ensure_ascii=False, default=str)}\n\nBẢNG (mỗi dòng: stt | nội dung | ĐVT | KL | ĐG | thành tiền):\n"
+               + "\n".join(f"{x.get('stt')} | {x.get('noi_dung')} | {x.get('dvt')} | {x.get('kl')} | {x.get('don_gia')} | {x.get('thanh_tien')}" for x in a.get("bang") or []))
+        kq, meta = ai_doc.doc(f, cty=_CFG.get("cty", "(chưa khai báo)"), schema=SCHEMA_HOI, huong_dan=HUONG_DAN_HOI, timeout=900, ngu_canh=ngu)
+        a2 = json.loads(json.dumps(a)); sua = []
+        for k, v in (kq.get("sua_truong") or {}).items():
+            if k in TRUONG_SUA and a2.get(k) != v: sua.append(f"{k}: {a2.get(k)} → {v}"); a2[k] = v
+        bang = a2.setdefault("bang", [])
+        for d in kq.get("sua_dong") or []:
+            x = next((x for x in bang if str(x.get("stt")) == str(d["stt"]) and (x.get("dvt") or x.get("kl") is not None)), None)
+            if x is None: continue
+            if d.get("xoa"): bang.remove(x); sua.append(f"bỏ dòng {d['stt']}"); continue
+            for k in ("noi_dung", "dvt", "kl", "don_gia", "thanh_tien"):
+                if k in d and d[k] != x.get(k): sua.append(f"dòng {d['stt']} {k}: {x.get(k)} → {d[k]}"); x[k] = d[k]
+        for d in kq.get("them_dong") or []:
+            bang.append({k: d.get(k) for k in ("stt", "noi_dung", "dvt", "kl", "don_gia", "thanh_tien")}); sua.append(f"thêm dòng {d['stt']}")
+        mt = khoa.split("|", 1)[1]
+        if sua and mt.startswith("AI đọc không chắc: "):                     # Agent đã sửa đúng ý 'không chắc' được hỏi ⇒ ý đó hết
+            y = mt[len("AI đọc không chắc: "):].strip(); kc = [x for x in a2.get("khong_chac") or [] if str(x).strip() != y]
+            if len(kc) != len(a2.get("khong_chac") or []): a2["khong_chac"] = kc; sua.append("đã xử lý ý 'không chắc' này")
+        h = dict(trang_thai="XONG", ghi_chu=ghi_chu, tra_loi=kq.get("tra_loi"), ket_luan=kq.get("ket_luan"), sua=sua, giay=meta.get("giay"), luc=dt.datetime.now().isoformat(timespec="seconds"))
+        if sua:                                                              # có sửa ⇒ áp lại + soát lại toàn bộ cờ (không đọc lại file)
+            ap_ket_qua(data, da, i, _CFG["du_an"]()[da]["khung"], a2, r.get("ai_meta") or {})
+        with KHOA:
+            s = doc_so(data, da); s[i].setdefault("co_hoi", {})[khoa] = h
+            if sua: s[i].setdefault("lich_su_sua", []).append(dict(luc=h["luc"], co=khoa, sua=sua))
+            ghi_so_nen(data, da, s)
+    except Exception as e:
+        traceback.print_exc()
+        with KHOA:
+            s = doc_so(data, da); s[i].setdefault("co_hoi", {})[khoa] = dict(trang_thai="LOI", ghi_chu=ghi_chu, tra_loi=str(e)[:400], luc=dt.datetime.now().isoformat(timespec="seconds"))
+            ghi_so_nen(data, da, s)
+def don_hoi_treo(data, da, phut=20):
+    """Engine khởi động lại giữa chừng ⇒ câu hỏi DANG quá hạn chuyển LOI để anh hỏi lại."""
+    han = dt.datetime.now() - dt.timedelta(minutes=phut)
+    treo = lambda s: [h for r in s.values() for h in (r.get("co_hoi") or {}).values() if h.get("trang_thai") == "DANG" and dt.datetime.fromisoformat(h["luc"]) < han]
+    if not treo(doc_so(data, da)): return
+    with KHOA:
+        s = doc_so(data, da)
+        for h in treo(s): h.update(trang_thai="LOI", tra_loi="Bị ngắt (engine khởi động lại / quá giờ) — anh hỏi lại")
+        ghi_so_nen(data, da, s)
+
 HANG = queue.Queue(); _CFG = {}
 def _tho():
     while True:

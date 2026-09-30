@@ -173,7 +173,7 @@ def xu_ly_nhap_khung(b):
         NEN.soat_lai_pl(DATA, da, cfg["khung"])                          # phụ lục: cờ theo bảng giá ĐANG hiệu lực
         rec = NEN.doc_so(DATA, da)[i]
         if rec.get("trang_thai") != "CHO_DUYET": raise ValueError("Hồ sơ này không ở trạng thái chờ duyệt")
-        if any(c["muc"] == "CHAN" for c in rec.get("co", [])): raise ValueError("Còn cờ CHẶN — chưa ghi khung được")
+        if NEN.chan_con(rec): raise ValueError("Còn cờ CHẶN chưa xử lý — anh bấm ✓ OK (kèm lý do) hoặc hỏi Agent từng cờ")
         if rec["loai"] == "NGAN_SACH":                                   # ngân sách R00 theo mẫu nội bộ — bộ đọc tất định
             import ns_r00, datetime as _d
             f = os.path.join(DATA, rec["duong_dan"])
@@ -330,7 +330,7 @@ class H(BaseHTTPRequestHandler):
                                                       for d in sorted(p["don_vi"].values(), key=lambda d: d["luc"])]))
             if u.path == "/so-gia/ptln": return self._tra(200, SG.so_sanh(DATA, q["du_an"], q["phien"], du_an()[q["du_an"]]["khung"]))
             if u.path == "/ho-so-nen":
-                try: NEN.soat_lai_pl(DATA, q["du_an"], du_an()[q["du_an"]]["khung"])
+                try: NEN.don_hoi_treo(DATA, q["du_an"]); NEN.soat_lai_pl(DATA, q["du_an"], du_an()[q["du_an"]]["khung"])
                 except Exception: traceback.print_exc()
                 return self._tra(200, sorted(NEN.doc_so(DATA, q["du_an"]).values(), key=lambda r: r["luc"], reverse=True))
             self._tra(404, dict(loi="không có đường dẫn này"))
@@ -355,6 +355,8 @@ class H(BaseHTTPRequestHandler):
                 if kq["ok"]: NEN.sua_rec(DATA, b["du_an"], b["id"], thay_hd_tam=dict(ma_hd=b["ma_hd"], luc=dt.datetime.now().isoformat(timespec="seconds")))
                 return self._tra(200, kq)
             if self.path == "/doc-lai": return self._tra(200, NEN.doc_lai(DATA, b["du_an"], b["id"]))
+            if self.path == "/nen/xac-nhan-co": return self._tra(200, NEN.xac_nhan_co(DATA, b["du_an"], b["id"], b["khoa"], b.get("ly_do", ""), bool(b.get("bo"))))
+            if self.path == "/nen/hoi-co": return self._tra(200, NEN.hoi_co(DATA, b["du_an"], b["id"], b["khoa"], b.get("ghi_chu", "")))
             if self.path == "/so-gia/tao": return self._tra(200, SG.tao_phien(DATA, b["du_an"], b.get("ten"), b.get("ghi_chu", "")))
             if self.path == "/so-gia/nap": return self._tra(200, SG.nap(DATA, b["du_an"], b["phien"], os.path.basename(b["ten"]), base64.b64decode(b["b64"])))
             if self.path == "/so-gia/sua": return self._tra(200, SG.sua_dv(DATA, b["du_an"], b["phien"], b["dv"], b.get("ten"), b.get("dung")))
