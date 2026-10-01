@@ -166,8 +166,8 @@ def _kiem(hs, k, van_tay_da_co=()):
         add("CHAN", "Hồ sơ", cv["o"].get("dot", "COVER"), cv["dot"], dc, f"Đợt {cv['dot']} cũ hơn/đã ghi sổ (khung đã ghi tới đợt {dc}) — chống trả trùng, chống ghi lùi lũy kế")
     elif pl["loai_hs"] == "TAM_UNG" and cv["dot"] is not None and cv["dot"] <= dtu:
         add("CHAN", "Hồ sơ", cv["o"].get("dot", "COVER"), cv["dot"], dtu, f"Tạm ứng đợt {cv['dot']} đã ghi sổ")
-    elif cv["dot"] is not None and cv["dot"] > dc + 1:                # anh chốt 01/10: bỏ qua 1 đợt ⇒ ĐIỀU CHỈNH sẽ NUỐT LUÔN đợt bị bỏ qua (mất dấu từng đợt) ⇒ CHẶN, không cho ghi vượt mặt
-        add("CHAN", "Hồ sơ", cv["o"].get("dot", "COVER"), cv["dot"], dc + 1, f"Thiếu đợt ở giữa so với khung (khung mới ghi tới đợt {dc}) — ghi đợt {dc + 1} trước rồi mới tới đợt {cv['dot']}, không thì các dòng 'kỳ trước ≠ lũy kế' dưới đây sẽ NUỐT LUÔN đợt bị bỏ qua")
+    elif cv["dot"] is not None and cv["dot"] > max(dc, dtu) + 1:      # anh chốt 01/10: bỏ qua 1 đợt ⇒ ĐIỀU CHỈNH sẽ NUỐT LUÔN đợt bị bỏ qua (mất dấu từng đợt) ⇒ CHẶN, không cho ghi vượt mặt
+        add("CHAN", "Hồ sơ", cv["o"].get("dot", "COVER"), cv["dot"], max(dc, dtu) + 1, f"Thiếu đợt ở giữa so với khung (khung mới ghi tới đợt {dc}, tạm ứng tới đợt {dtu}) — ghi đợt {max(dc, dtu) + 1} trước rồi mới tới đợt {cv['dot']}, không thì các dòng 'kỳ trước ≠ lũy kế' dưới đây sẽ NUỐT LUÔN đợt bị bỏ qua")
     # lớp 2 — theo HĐ · lớp 4 — theo đợt trước
     khop = []
     for l in hs["lines"]:
