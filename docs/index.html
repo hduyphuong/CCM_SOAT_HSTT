@@ -357,6 +357,42 @@ const b64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload 
     b.disabled = false; b.textContent = "✓ Ghi sổ khoản này";
   };
 })();
+// ── 💰 TẠM ỨNG / HOÀN ỨNG CĐT khai báo tay (không qua hồ sơ thanh toán) ──
+(function () {
+  const box = document.createElement("div"); box.className = "card";
+  box.innerHTML = `<div class="hd"><div><h3>💰 Tạm ứng / Hoàn ứng CĐT</h3><div class="note">CĐT chuyển tạm ứng hoặc khấu trừ hoàn ứng mà không qua hồ sơ thanh toán chuẩn — ghi trực tiếp vào HĐ CĐT</div></div><span class="sp"></span><button class="btn fix tu-mo">💰 Mở form</button></div>
+    <div class="pad tu-f" style="display:none"><div class="nen-form" style="flex-wrap:wrap;gap:8px">
+      <label style="flex:1 1 260px">Hợp đồng CĐT<select class="tu-hd"><option value="">— đang tải… —</option></select></label>
+      <label style="flex:0 1 180px">Loại<select class="tu-loai"><option value="TAM_UNG">Tạm ứng (CĐT chuyển thêm)</option><option value="HOAN_UNG">Hoàn ứng (trừ dần/trừ hết)</option></select></label>
+      <label style="flex:0 1 160px">Ngày<input type="date" class="tu-ng"></label>
+      <label style="flex:0 1 200px">Số tiền (luôn nhập số dương)<input type="number" class="tu-st" min="0" step="1000"></label>
+      <label style="flex:1 1 260px">Ghi chú / căn cứ<input class="tu-gc" placeholder="VD: UNC ngày…, bảo lãnh tạm ứng 10%"></label></div>
+      <div class="note tu-du" style="margin-top:6px"></div>
+      <div style="margin-top:10px"><button class="btn ok tu-ghi">✓ Ghi sổ khoản này</button> <span class="note">Có backup · lưu vào "Hồ sơ đã nạp" · hoàn ứng vượt dư còn lại sẽ bị chặn</span></div><div class="res tu-kq"></div></div>`;
+  $("#drop").after(box);
+  box.querySelector(".tu-ng").value = new Date().toISOString().slice(0, 10);
+  let DS_HD = [];
+  const duCon = () => { const h = DS_HD.find(x => x.ma_hd === box.querySelector(".tu-hd").value); box.querySelector(".tu-du").textContent = h ? `Dư tạm ứng hiện tại: ${fmt(h.tu_treo)}đ` : "" };
+  box.querySelector(".tu-mo").onclick = async () => {
+    const f = box.querySelector(".tu-f"), mo = f.style.display === "none"; f.style.display = mo ? "block" : "none"; box.querySelector(".tu-mo").textContent = mo ? "✕ Đóng form" : "💰 Mở form"; if (!mo) return;
+    try { DS_HD = await api("/hd-cdt-tam-ung?du_an=" + encodeURIComponent($("#da").value));
+          box.querySelector(".tu-hd").innerHTML = (DS_HD.length ? '<option value="">— chọn HĐ —</option>' : '<option value="">— chưa có HĐ CĐT nào —</option>')
+            + DS_HD.map(x => `<option value="${esc(x.ma_hd)}">${esc(x.ma_hd)} — ${esc(x.so_hd || "")} (dư ${fmt(x.tu_treo)}đ)</option>`).join(""); duCon() }
+    catch (e) { box.querySelector(".tu-kq").className = "res er tu-kq"; box.querySelector(".tu-kq").textContent = "Lỗi tải HĐ: " + e.message }
+  };
+  box.querySelector(".tu-hd").onchange = duCon;
+  box.querySelector(".tu-ghi").onclick = async () => {
+    const v = c => box.querySelector(c).value, kq = box.querySelector(".tu-kq"), st = +v(".tu-st"), loai = v(".tu-loai");
+    if (!v(".tu-hd") || !st) { kq.className = "res er tu-kq"; kq.textContent = "Cần chọn hợp đồng và nhập số tiền"; return }
+    if (!confirm(`Ghi sổ ${loai === "TAM_UNG" ? "TẠM ỨNG" : "HOÀN ỨNG"} ${st.toLocaleString("vi-VN")}đ vào ${v(".tu-hd")} ngày ${v(".tu-ng")}?`)) return;
+    const b = box.querySelector(".tu-ghi"); b.disabled = true; b.textContent = "Đang ghi…";
+    try { const r = await api("/tam-ung-cdt", {du_an: $("#da").value, ma_hd: v(".tu-hd"), loai, so_tien: st, ngay: v(".tu-ng"), ghi_chu: v(".tu-gc")});
+          kq.className = "res ok tu-kq"; kq.textContent = r.thong_bao; box.querySelector(".tu-st").value = ""; box.querySelector(".tu-gc").value = "";
+          const h = DS_HD.find(x => x.ma_hd === r.ma_hd); if (h) h.tu_treo = r.tu_sau; duCon() }
+    catch (e) { kq.className = "res er tu-kq"; kq.textContent = "Lỗi: " + e.message }
+    b.disabled = false; b.textContent = "✓ Ghi sổ khoản này";
+  };
+})();
 async function nap(files, L) {
   let tt = null;
   if (L && L.thu_muc) {                                                   // thẻ tóm tắt khi thả cả thư mục
