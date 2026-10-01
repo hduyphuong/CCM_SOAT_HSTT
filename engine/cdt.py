@@ -154,7 +154,8 @@ def kiem_cdt(hs, k, van_tay_da_co=()):
     h = b["hd"][ma]; ds = b["dong"].get(ma, [])
     if cv["dot"] is not None and cv["dot"] <= b["dot_cuoi"].get(ma, 0):
         add("CHAN", "Hồ sơ", cv["o"]["dot"], cv["dot"], b["dot_cuoi"][ma], f"Đợt {cv['dot']} đã ghi sổ phía CĐT — chống ghi doanh thu 2 lần")
-    elif cv["dot"] is not None and cv["dot"] > b["dot_cuoi"].get(ma, 0) + 1: add("LUU_Y", "Hồ sơ", cv["o"]["dot"], cv["dot"], b["dot_cuoi"].get(ma, 0) + 1, "Thiếu đợt ở giữa")
+    elif cv["dot"] is not None and cv["dot"] > b["dot_cuoi"].get(ma, 0) + 1:               # anh chốt 01/10: cùng luật với kiem.py — bỏ qua 1 đợt sẽ bị ĐIỀU CHỈNH nuốt mất, CHẶN
+        add("CHAN", "Hồ sơ", cv["o"]["dot"], cv["dot"], b["dot_cuoi"].get(ma, 0) + 1, f"Thiếu đợt ở giữa (khung mới ghi tới đợt {b['dot_cuoi'].get(ma, 0)}) — ghi đợt {b['dot_cuoi'].get(ma, 0) + 1} trước rồi mới tới đợt {cv['dot']}, không thì các dòng 'kỳ trước ≠ lũy kế' dưới đây sẽ NUỐT LUÔN đợt bị bỏ qua")
     khop = []
     for l in hs["lines"]:
         d = _khop(l, ds); khop.append((l, d["stt"] if d else None)); vt = f"{S}!dòng {l['dong']}"
