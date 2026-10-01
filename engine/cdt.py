@@ -54,8 +54,11 @@ def doc_claim(path, wb):
     H, S = [na(c) for c in rows[h]], [na(c) for c in rows[h + 1]]
     col = lambda lab, arr: next((j for j, c in enumerate(arr) if c.startswith(lab)), None)
     c_stt, c_ds, c_dv, c_klhd, c_dg = col("STT", H), col("NOI DUNG", H), col("DON VI", H), col("KHOI LUONG HD", H), col("DON GIA", H)
-    kt = [j for j, c in enumerate(S) if c in ("KI TRUOC", "KY TRUOC")]; kn = [j for j, c in enumerate(S) if c in ("KI NAY", "KY NAY")]
-    lk = [j for j, c in enumerate(S) if c == "LUY KE"]
+    # 2 cách ghi tiêu đề gặp trong thực tế (Đợt 1/2 SIMONA dùng cách B, các đợt sau dùng cách A):
+    #   A: KI/KY TRUOC · KI/KY NAY · LUY KE          B: LUY KE DOT TRUOC · DOT HIEN TAI · LUY KE (DOT HIEN TAI)
+    kt = [j for j, c in enumerate(S) if c in ("KI TRUOC", "KY TRUOC") or ("LUY KE" in c and "TRUOC" in c)]
+    kn = [j for j, c in enumerate(S) if c in ("KI NAY", "KY NAY", "DOT HIEN TAI")]
+    lk = [j for j, c in enumerate(S) if c == "LUY KE" or (c.startswith("LUY KE") and "TRUOC" not in c)]
     txt = " ".join(na(c) for r in rows[:h] for c in r if c)
     so_hd = next((str(c).split(":", 1)[1].strip() for r in rows[:h] for c in r if na(c).startswith("SO HOP DONG:")), None)
     m = re.search(r"DOT\s*(\d+)", txt); dot = int(m.group(1)) if m else None
