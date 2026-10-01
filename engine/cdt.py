@@ -1,6 +1,6 @@
 """PHÍA CĐT (doanh thu): đọc hồ sơ thanh toán gửi CĐT · kiểm với BOQ HĐ CĐT (N5) + đợt đã ghi (N8) · kế hoạch ghi sổ.
 Khấu trừ / phạt / cấp vật tư của CĐT = CHI của mình ⇒ ghi bên ĐỐI TÁC (N9, HĐ khấu trừ CĐT) — đúng bản chất THU–CHI."""
-import openpyxl, re, datetime as dt
+import os, openpyxl, re, datetime as dt
 from collections import defaultdict
 from doc_hstt import na, num, _ngay
 NGUONG = 10
@@ -62,6 +62,9 @@ def doc_claim(path, wb):
     txt = " ".join(na(c) for r in rows[:h] for c in r if c)
     so_hd = next((str(c).split(":", 1)[1].strip() for r in rows[:h] for c in r if na(c).startswith("SO HOP DONG:")), None)
     m = re.search(r"DOT\s*(\d+)", txt); dot = int(m.group(1)) if m else None
+    if dot is None:                                                      # file không ghi 'ĐỢT N' trong nội dung (vài file Đợt 1/2 SIMONA dùng mẫu bìa cũ) ⇒ lấy từ TÊN FILE
+        m2 = re.search(r"DOT\s*(\d+)", na(os.path.basename(path)))
+        if m2: dot = int(m2.group(1))
     kq = dict(loai="CDT", file=path, sheet=sn, lines=[], tong=None, vat=None, tu=0.0, hu=0.0, tu_k=0.0, hu_k=0.0, gl=None, du_tru=0)
     for i, r in enumerate(rows[h + 2:], h + 3):
         a = na(r[c_stt])
