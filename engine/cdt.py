@@ -65,7 +65,12 @@ def doc_claim(path, wb):
     if dot is None:                                                      # file không ghi 'ĐỢT N' trong nội dung (vài file Đợt 1/2 SIMONA dùng mẫu bìa cũ) ⇒ lấy từ TÊN FILE
         m2 = re.search(r"DOT\s*(\d+)", na(os.path.basename(path)))
         if m2: dot = int(m2.group(1))
-    kq = dict(loai="CDT", file=path, sheet=sn, lines=[], tong=None, vat=None, tu=0.0, hu=0.0, tu_k=0.0, hu_k=0.0, gl=None, du_tru=0)
+    kq = dict(loai="CDT", file=path, sheet=sn, lines=[], tong=None, vat=None, tu=0.0, hu=0.0, tu_k=0.0, hu_k=0.0, gl=None, du_tru=0, bo_sung_100pct=0.0)
+    # E.2 'GIÁ TRỊ THANH TOÁN BỔ SUNG 10% CHO CÁC HẠNG MỤC ĐẠT 100%' (CĐT giải phóng sớm tiền giữ lại — KHÔNG phải doanh thu mới,
+    # anh xác nhận 01/10/2026 là có thật, CHƯA có hồ sơ chứng từ xác minh) — nằm SAU dòng 'C' nên vòng lặp chính bỏ qua, quét riêng:
+    for r in rows[h + 2:]:
+        if na(str(r[0] or "")) in ("E.2", "E2") or "BO SUNG 10" in na(str(r[2] or "")):
+            kq["bo_sung_100pct"] = num(r[kn[1]]) or 0.0; break
     for i, r in enumerate(rows[h + 2:], h + 3):
         a = na(r[c_stt])
         if a == "B": kq["tong"] = (num(r[kt[1]]), num(r[kn[1]]), num(r[lk[1]])); continue
@@ -148,8 +153,14 @@ def kiem_cdt(hs, k, van_tay_da_co=()):
                 if ky == "kn": add("LUU_Y", "Số học", f"{S}!dòng {l['dong']}", round(l["tt_kn"]), round(l["kl_kn"], 8), f"KL kỳ này suy = tiền ÷ ĐG ({l['kl_kn']:.8f}): {l['ds'][:40]}")
         if abs(l["kl_kn"] * l["dg"] - l["tt_kn"]) > NGUONG: add("CHAN", "Số học", f"{S}!dòng {l['dong']}", round(l["tt_kn"]), round(l["kl_kn"] * l["dg"]), f"Tiền ≠ KL × ĐG: {l['ds'][:40]}")
     vat = hs["vat"] if hs["vat"] is not None else (b["hd"][ma]["vat"] if ma else 0)
-    if tien.get("th_vat") is not None and abs(t[1] * (1 + vat) - tien["th_vat"]) > NGUONG + 1:
-        add("CHAN", "Số học", "PHIẾU ĐNTT", round(tien["th_vat"]), round(t[1] * (1 + vat)), "Giá trị có VAT trên phiếu ≠ kỳ này × (1 + VAT)")
+    bs = hs.get("bo_sung_100pct") or 0.0                              # E.2: CĐT giải phóng sớm tiền giữ lại cho hạng mục đạt 100% — không phải doanh thu mới
+    d_vat = t[1] * (1 + vat)                                          # 'D' = giá trị có VAT của kỳ này theo BOQ (chưa cộng bs)
+    if tien.get("th_vat") is not None and abs(d_vat + bs - tien["th_vat"]) > NGUONG + 1:
+        add("CHAN", "Số học", "PHIẾU ĐNTT", round(tien["th_vat"]), round(d_vat + bs), "Giá trị có VAT trên phiếu ≠ kỳ này × (1 + VAT)" + (" + bổ sung 10%" if bs else ""))
+    if bs:
+        add("LUU_Y", "Hồ sơ", "PHIẾU ĐNTT — mục 2", round(bs), "—",
+            f"Thanh toán bổ sung 10% ({bs:,.0f}đ) cho hạng mục đạt 100% — KHÔNG có điều khoản này trong HĐ gốc (Agent đã đọc toàn bộ 42 trang, không thấy), "
+            f"anh xác nhận 01/10/2026 là ngoại lệ CÓ THẬT nhưng CHƯA có hồ sơ/chứng từ xác minh — cần bổ sung chứng từ trước khi quyết toán")
     tom = dict(ky_nay=t[1], luy_ke=t[2], ky_truoc=t[0], so_dong=len(hs["lines"]), don_vi=cv["ten_don_vi"], so_hd=cv["so_hd"], dot=cv["dot"],
                ngay=cv["ngay"].isoformat() if cv["ngay"] else None, vat=vat, du_tru_tam_ung=None, tien=tien)
     pl = dict(ma_hd=ma, loai_doi_tac="CĐT", loai_hs="DOANH_THU")
@@ -171,13 +182,14 @@ def kiem_cdt(hs, k, van_tay_da_co=()):
         lk0 = b["lk_kl"].get((ma, d["stt"]), 0.0)
         if abs(l["kl_kt"] - lk0) > 1e-6: add("LUU_Y", "Đợt trước", vt, round(l["kl_kt"], 4), round(lk0, 4), f"KL kỳ trước ≠ lũy kế đã ghi ⇒ sẽ ghi ĐIỀU CHỈNH: {l['ds'][:40]}")
     if abs(t[0] - b["lk_tien"][ma]) > NGUONG: add("LUU_Y", "Đợt trước", f"{S} dòng B", round(t[0]), round(b["lk_tien"][ma]), "Giá trị kỳ trước ≠ lũy kế doanh thu đã ghi sổ")
-    th = tien.get("th_vat", t[1] * (1 + vat)); ptt = num(h["pct_tt_dot"])
-    if tien.get("giu_lai") is not None and ptt and abs(tien["giu_lai"] - th * (1 - ptt)) > NGUONG: add("LUU_Y", "Theo HĐ", "PHIẾU ĐNTT", round(tien["giu_lai"]), round(th * (1 - ptt)), "Giữ lại khác % HĐ")
+    ptt = num(h["pct_tt_dot"])                                        # giữ lại tính trên D (BOQ kỳ này) — bs là tiền giữ lại GIẢI PHÓNG SỚM, không sinh thêm giữ lại mới
+    if tien.get("giu_lai") is not None and ptt and abs(tien["giu_lai"] - d_vat * (1 - ptt)) > NGUONG: add("LUU_Y", "Theo HĐ", "PHIẾU ĐNTT", round(tien["giu_lai"]), round(d_vat * (1 - ptt)), "Giữ lại khác % HĐ")
     tu_con = b["tu_treo"][ma]
     if tien.get("thu_hoi", 0) > tu_con + NGUONG: add("LUU_Y", "Theo HĐ", "PHIẾU ĐNTT", round(tien["thu_hoi"]), round(tu_con), "Thu hồi tạm ứng VƯỢT tạm ứng còn lại")
     if tien.get("de_nghi") is not None and ptt:
-        tinh = th * ptt - tien.get("thu_hoi", 0) - tien.get("khau_tru", 0)
-        if abs(tien["de_nghi"] - tinh) > NGUONG: add("CHAN", "Số học", "PHIẾU ĐNTT", round(tien["de_nghi"]), round(tinh), "Đề nghị TT ≠ có VAT × %TT − thu hồi − khấu trừ")
+        tinh = (d_vat * ptt - tien.get("thu_hoi", 0) - tien.get("khau_tru", 0)) if not bs else \
+               (d_vat + bs - tien.get("thu_hoi", 0) - tien.get("khau_tru", 0) - (tien.get("giu_lai") if tien.get("giu_lai") is not None else d_vat * (1 - ptt)))
+        if abs(tien["de_nghi"] - tinh) > NGUONG: add("CHAN", "Số học", "PHIẾU ĐNTT", round(tien["de_nghi"]), round(tinh), "Đề nghị TT ≠ có VAT × %TT − thu hồi − khấu trừ" + (" (có bổ sung 10%, trừ giữ lại riêng)" if bs else ""))
     if tien.get("khau_tru") and MA_KT not in k["hd"]: add("LUU_Y", "Hồ sơ", "PHIẾU ĐNTT", round(tien["khau_tru"]), "—", f"Khung chưa có HĐ khấu trừ {MA_KT} — bấm Đồng ý thì app TỰ TẠO rồi ghi khấu trừ bên CHI (÷ 1+VAT)")
     vt_ = hs.get("vat_tu")                                             # VẬT TƯ CĐT CẤP ⇒ CHI (HD-CDT-VT) · kỳ trước từng loại = lũy kế đã ghi sổ
     if vt_:
