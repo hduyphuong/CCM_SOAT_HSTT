@@ -157,10 +157,10 @@ def kiem_cdt(hs, k, van_tay_da_co=()):
     d_vat = t[1] * (1 + vat)                                          # 'D' = giá trị có VAT của kỳ này theo BOQ (chưa cộng bs)
     if tien.get("th_vat") is not None and abs(d_vat + bs - tien["th_vat"]) > NGUONG + 1:
         add("CHAN", "Số học", "PHIẾU ĐNTT", round(tien["th_vat"]), round(d_vat + bs), "Giá trị có VAT trên phiếu ≠ kỳ này × (1 + VAT)" + (" + bổ sung 10%" if bs else ""))
-    if bs:
-        add("LUU_Y", "Hồ sơ", "PHIẾU ĐNTT — mục 2", round(bs), "—",
+    if bs:                                                             # anh chốt 01/10: ngoại lệ ngoài HĐ ⇒ CHẶN, bắt xác nhận tay riêng (không lẫn vào lưu ý thường)
+        add("CHAN", "Hồ sơ", "PHIẾU ĐNTT — mục 2", round(bs), "—",
             f"Thanh toán bổ sung 10% ({bs:,.0f}đ) cho hạng mục đạt 100% — KHÔNG có điều khoản này trong HĐ gốc (Agent đã đọc toàn bộ 42 trang, không thấy), "
-            f"anh xác nhận 01/10/2026 là ngoại lệ CÓ THẬT nhưng CHƯA có hồ sơ/chứng từ xác minh — cần bổ sung chứng từ trước khi quyết toán")
+            f"đây là NGOẠI LỆ — anh phải xác nhận riêng mới ghi sổ được", True)
     tom = dict(ky_nay=t[1], luy_ke=t[2], ky_truoc=t[0], so_dong=len(hs["lines"]), don_vi=cv["ten_don_vi"], so_hd=cv["so_hd"], dot=cv["dot"],
                ngay=cv["ngay"].isoformat() if cv["ngay"] else None, vat=vat, du_tru_tam_ung=None, tien=tien)
     pl = dict(ma_hd=ma, loai_doi_tac="CĐT", loai_hs="DOANH_THU")
@@ -254,4 +254,4 @@ def ke_hoach_cdt(hs, kq, k):
         if pv: phan.append(pv)
     return dict(ma_hd=ma, phan=phan, dong_hd_moi=[], dong_tt=tt + [x for p in phan[1:] for x in p["dong_tt"]], lk_hstt=phan[0]["lk_hstt"])
 
-def _dang(co): return [dict(muc=m, lop=lop, vi_tri=vt, hstt=a, doi_chieu=b_, mo_ta=mt) for m, lop, vt, a, b_, mt in co]
+def _dang(co): return [dict(muc=x[0], lop=x[1], vi_tri=x[2], hstt=x[3], doi_chieu=x[4], mo_ta=x[5], **({"ngoai_le": True} if len(x) > 6 and x[6] else {})) for x in co]

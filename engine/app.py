@@ -93,9 +93,10 @@ def xu_ly_nap(b):
     if cu_rec and cu_rec["trang_thai"] == "DA_GHI_SO":           # đã ghi sổ ⇒ không cho ghi lần 2
         cu_rec["co"] = [dict(muc="CHAN", lop="Hồ sơ", vi_tri="file", hstt=i, doi_chieu="đã ghi sổ", mo_ta="Hồ sơ này ĐÃ GHI SỔ lúc " + str(cu_rec.get("luc_duyet")))]
         return cu_rec
+    ngoai_le_xn = (cu_rec or {}).get("ngoai_le_xn") or {}             # nạp lại cùng file ⇒ giữ các xác nhận ngoại lệ đã có trước đó
     rec = dict(id=i, van_tay=vt, ten=ten, file=dich, luc=dt.datetime.now().isoformat(timespec="seconds"),
-               trang_thai="CHO_DUYET", khung_mtime=os.path.getmtime(cfg["khung"]),  # nạp lại (kể cả file đã TRẢ ĐỘI / YÊU CẦU SỬA) ⇒ soát lại từ đầu, chờ duyệt
-               phan_loai=kq["phan_loai"], tom_tat=kq["tom_tat"], co=kq["co"], ke_hoach=kh, ly_do=None, ket_qua=None,
+               trang_thai="CHO_DUYET", khung_mtime=os.path.getmtime(cfg["khung"]), ngoai_le_xn=ngoai_le_xn,  # nạp lại (kể cả file đã TRẢ ĐỘI / YÊU CẦU SỬA) ⇒ soát lại từ đầu, chờ duyệt
+               phan_loai=kq["phan_loai"], tom_tat=kq["tom_tat"], co=ap_ngoai_le(dict(ngoai_le_xn=ngoai_le_xn), kq["co"]), ke_hoach=kh, ly_do=None, ket_qua=None,
                lich_su=((cu_rec or {}).get("lich_su") or []) + ([dict(trang_thai=cu_rec["trang_thai"], ly_do=cu_rec.get("ly_do"), luc=cu_rec.get("luc_duyet") or cu_rec.get("luc"))]
                                                         if cu_rec and cu_rec["trang_thai"] != "CHO_DUYET" else []))
     if cu_rec and cu_rec.get("hd_tam"): rec["hd_tam"] = cu_rec["hd_tam"]
@@ -124,17 +125,37 @@ def soat_lai_ho_so(da):
             with SO_KHOA:
                 s2 = so_nap(da); r2 = s2.get(i)
                 if r2 and r2.get("trang_thai") == "CHO_DUYET":
-                    r2.update(phan_loai=kq["phan_loai"], tom_tat=kq["tom_tat"], co=kq["co"], ke_hoach=kh, khung_mtime=mt)
+                    r2.update(phan_loai=kq["phan_loai"], tom_tat=kq["tom_tat"], co=ap_ngoai_le(r2, kq["co"]), ke_hoach=kh, khung_mtime=mt)
                     luu_so(da, s2)
         except Exception: traceback.print_exc()
     return len(can)
+
+def _khoa_ngoai_le(c): return f"{c.get('lop')}|{c.get('vi_tri')}"
+def ap_ngoai_le(rec, co):
+    """Cờ CHẶN đánh dấu ngoai_le=True (vd khoản ngoài HĐ anh xác nhận miệng) ⇒ giữ MUC=CHAN hiển thị, nhưng nếu đã xác nhận riêng (rec.ngoai_le_xn)
+    thì không tính vào chan_con_hstt nữa — không lẫn vào lưu ý thường, luôn thấy dấu vết đã xác nhận."""
+    xn = (rec or {}).get("ngoai_le_xn") or {}
+    for c in co:
+        if c.get("ngoai_le") and _khoa_ngoai_le(c) in xn: c["da_xac_nhan"] = xn[_khoa_ngoai_le(c)]
+    return co
+def chan_con_hstt(co): return [c for c in co if c["muc"] == "CHAN" and not c.get("da_xac_nhan")]
+def xu_ly_xac_nhan_ngoai_le(b):
+    da, i, khoa, ly_do = b["du_an"], b["id"], b["khoa"], (b.get("ly_do") or "").strip()
+    if not ly_do: raise ValueError("Cần ghi lý do xác nhận ngoại lệ")
+    with KHOA:
+        s = so_nap(da); r = s[i]
+        if not any(c.get("ngoai_le") and _khoa_ngoai_le(c) == khoa for c in r.get("co", [])): raise ValueError("Cờ ngoại lệ này không còn — anh tải lại trang")
+        r.setdefault("ngoai_le_xn", {})[khoa] = dict(ly_do=ly_do[:500], luc=dt.datetime.now().isoformat(timespec="seconds"))
+        r["co"] = ap_ngoai_le(r, r["co"]); luu_so(da, s)
+        return r
 
 def xu_ly_duyet(b):
     da, i, hd = b["du_an"], b["id"], b["hanh_dong"]
     s = so_nap(da); rec = s[i]
     if rec["trang_thai"] == "DA_GHI_SO": return dict(ok=False, ly_do="Hồ sơ đã ghi sổ trước đó")
     if hd == "DONG_Y":
-        if any(c["muc"] == "CHAN" for c in rec["co"]): return dict(ok=False, ly_do="Còn cờ CHẶN — nút Đồng ý bị khoá")
+        rec["co"] = ap_ngoai_le(rec, rec["co"])
+        if chan_con_hstt(rec["co"]): return dict(ok=False, ly_do="Còn cờ CHẶN — nút Đồng ý bị khoá")
         with KHOA:
             cfg = du_an()[da]
             hs = _doc_rec(rec); hs["van_tay"] = rec["van_tay"]
@@ -145,19 +166,22 @@ def xu_ly_duyet(b):
                 t = NK.tao_hd_cdt_kt(cfg["khung"], hs.get("vat") or 0, os.path.join(os.path.dirname(cfg["khung"]), "_backup"), nguon=f"webapp · {rec['ten'][:40]}")
                 if not t["ok"]: return dict(ok=False, ly_do="Không tạo được HĐ khấu trừ HD-CDT-KT: " + t["ly_do"])
                 k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", []); kq = K.kiem(hs, k)
-            if any(c["muc"] == "CHAN" for c in kq["co"]): return dict(ok=False, ly_do="Kiểm lại trước khi ghi phát sinh cờ CHẶN", co=kq["co"])
+            kq["co"] = ap_ngoai_le(rec, kq["co"])
+            if chan_con_hstt(kq["co"]): return dict(ok=False, ly_do="Kiểm lại trước khi ghi phát sinh cờ CHẶN", co=kq["co"])
             vt_ = hs.get("vat_tu") or {}
             if kq["phan_loai"].get("ma_hd") == "HD-CDT" and vt_.get("tong") and abs(vt_["tong"][1]) > 1 and "HD-CDT-VT" not in k["hd"]:     # vật tư CĐT cấp ⇒ HĐ bên CHI
                 t = NK.tao_hd_cdt_vt(cfg["khung"], hs.get("vat") or 0, os.path.join(os.path.dirname(cfg["khung"]), "_backup"), nguon=f"webapp · {rec['ten'][:40]}")
                 if not t["ok"]: return dict(ok=False, ly_do="Không tạo được HĐ vật tư CĐT cấp HD-CDT-VT: " + t["ly_do"])
                 k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", []); kq = K.kiem(hs, k)
-                if any(c["muc"] == "CHAN" for c in kq["co"]): return dict(ok=False, ly_do="Kiểm lại sau khi tạo HD-CDT-VT phát sinh cờ CHẶN", co=kq["co"])
+                kq["co"] = ap_ngoai_le(rec, kq["co"])
+                if chan_con_hstt(kq["co"]): return dict(ok=False, ly_do="Kiểm lại sau khi tạo HD-CDT-VT phát sinh cờ CHẶN", co=kq["co"])
             ph_ = hs.get("phat") or {}
             if kq["phan_loai"].get("ma_hd") == "HD-CDT" and ph_.get("tong") and abs(ph_["tong"][1]) > 1 and "HD-CDT-PHAT" not in k["hd"]:   # phạt CĐT ⇒ HĐ bên CHI, VAT 0%
                 t = NK.tao_hd_cdt_phat(cfg["khung"], os.path.join(os.path.dirname(cfg["khung"]), "_backup"), nguon=f"webapp · {rec['ten'][:40]}")
                 if not t["ok"]: return dict(ok=False, ly_do="Không tạo được HĐ phạt CĐT HD-CDT-PHAT: " + t["ly_do"])
                 k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", []); kq = K.kiem(hs, k)
-                if any(c["muc"] == "CHAN" for c in kq["co"]): return dict(ok=False, ly_do="Kiểm lại sau khi tạo HD-CDT-PHAT phát sinh cờ CHẶN", co=kq["co"])
+                kq["co"] = ap_ngoai_le(rec, kq["co"])
+                if chan_con_hstt(kq["co"]): return dict(ok=False, ly_do="Kiểm lại sau khi tạo HD-CDT-PHAT phát sinh cờ CHẶN", co=kq["co"])
             kh = G.ke_hoach(hs, kq, k)
             kq_ghi = G.ghi(cfg["khung"], kh, rec["ten"], os.path.join(os.path.dirname(cfg["khung"]), "_backup"))
         rec["ket_qua"] = kq_ghi
@@ -234,7 +258,7 @@ def _soat_scan(da, i):
     k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", []); DS.chuan_bi(hs, k)
     cu = {v["van_tay"] for k_, v in s.items() if k_ != i and v["trang_thai"] != "TRA_DOI"}
     kq = K.kiem(hs, k, cu); kh = G.ke_hoach(hs, kq, k) if kq["phan_loai"]["ma_hd"] else None
-    rec.update(trang_thai="CHO_DUYET", phan_loai=kq["phan_loai"], tom_tat=kq["tom_tat"], co=kq["co"], ke_hoach=kh)
+    rec.update(trang_thai="CHO_DUYET", phan_loai=kq["phan_loai"], tom_tat=kq["tom_tat"], co=ap_ngoai_le(rec, kq["co"]), ke_hoach=kh)
     s = ghi_rec(da, i, rec); return rec
 
 AI_CHAY = set()                                                     # (dự án, id) đang có luồng AI đọc THẬT
@@ -384,6 +408,7 @@ class H(BaseHTTPRequestHandler):
             b = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
             if self.path == "/nap": return self._tra(200, xu_ly_nap(b))
             if self.path == "/duyet": return self._tra(200, xu_ly_duyet(b))
+            if self.path == "/xac-nhan-ngoai-le": return self._tra(200, xu_ly_xac_nhan_ngoai_le(b))
             if self.path == "/nap-nen": return self._tra(200, xu_ly_nap_nen(b))
             if self.path == "/doan-hstt": return self._tra(200, xu_ly_doan_hstt(b))
             if self.path == "/dinh-kem": return self._tra(200, xu_ly_dinh_kem(b))

@@ -55,7 +55,7 @@ td{padding:9px 10px;border-bottom:1px solid var(--ru2);vertical-align:top}td.n,t
 tbody tr:last-child td{border-bottom:0}
 table.bang thead th{background:#f7f9fc;position:sticky;top:0}table.bang tfoot td{font-weight:700;background:#f7f9fc;border-top:1px solid var(--ru)}
 tr.click{cursor:pointer;transition:background .12s}tr.click:hover td{background:#f5f8ff}tr.sel td{background:var(--pri2)}tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--pri)}
-.co-bang td.co-act{white-space:nowrap;text-align:right;width:1%}.btn2.sm,.btn.sm{padding:3px 9px;font-size:12px}.co-daok td{opacity:.62}.co-daok td.co-act{opacity:1}.co-hoi{margin-top:6px;padding:6px 9px;border-left:3px solid var(--pr,#6d4aff);background:rgba(109,74,255,.06);border-radius:4px;font-size:12.5px}.co-hoi.LOI{border-color:var(--er)}.co-hoi.DANG{opacity:.8}.b{display:inline-block;white-space:nowrap;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px}.b.CHAN{background:var(--erb);color:var(--er)}.b.LUU_Y{background:var(--wab);color:var(--wa)}
+.co-bang td.co-act{white-space:nowrap;text-align:right;width:1%}.btn2.sm,.btn.sm{padding:3px 9px;font-size:12px}.co-daok td{opacity:.62}.co-daok td.co-act{opacity:1}.co-hoi{margin-top:6px;padding:6px 9px;border-left:3px solid var(--pr,#6d4aff);background:rgba(109,74,255,.06);border-radius:4px;font-size:12.5px}.co-hoi.LOI{border-color:var(--er)}.co-hoi.DANG{opacity:.8}.b{display:inline-block;white-space:nowrap;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px}.b.CHAN{background:var(--erb);color:var(--er)}.b.LUU_Y{background:var(--wab);color:var(--wa)}tr.ngoai-le{background:rgba(157,78,221,.08)}tr.ngoai-le .b.CHAN{background:#9d4edd;color:#fff}
 .note{font-size:12px;color:var(--mu)}.empty{color:var(--fa);text-align:center;padding:34px}.neg{color:var(--er)!important}
 details{font-size:13px}summary{cursor:pointer;color:var(--pri);font-weight:600}
 /* ── nút / điều khiển ── */
@@ -421,7 +421,7 @@ async function nap(files, L) {
 function the(r) {
   const el = document.createElement("div"); el.className = "card"; el.dataset.id = r.id;
   const pl = r.phan_loai || {}, t = r.tom_tat || {}, co = r.co || [];
-  const nChan = co.filter(c => c.muc === "CHAN").length, nLuu = co.length - nChan;
+  const nChan = co.filter(c => c.muc === "CHAN" && !c.da_xac_nhan).length, nLuu = co.length - nChan - co.filter(c => c.da_xac_nhan).length;
   const trang = {CHO_DUYET: "chờ duyệt", DA_GHI_SO: "ĐÃ GHI SỔ", YEU_CAU_SUA: "yêu cầu chỉnh sửa", TRA_DOI: "đã trả đội"}[r.trang_thai] || r.trang_thai;
   const kh = r.ke_hoach;
   el.innerHTML = `
@@ -444,8 +444,11 @@ function the(r) {
         `<tr><td>${esc(x.loai)}</td><td>${esc(x.stt ?? "")}</td><td class="n">${fmt(x.kl)}</td><td class="n">${fmt(x.dg ?? x.so_tien)}</td></tr>`).join("")}</table></details>` : ""}
     </div>
     <div class="right">${co.length ? `<table><tr><th>Mức</th><th>Lớp</th><th>Vị trí</th><th class="n">HSTT</th><th class="n">Đối chiếu</th><th>Nội dung</th></tr>
-      ${co.sort((a, b) => (a.muc > b.muc) - (a.muc < b.muc)).map(c => `<tr><td><span class="b ${c.muc}">${c.muc === "CHAN" ? "CHẶN" : "LƯU Ý"}</span></td><td>${esc(c.lop)}</td>
-      <td>${esc(c.vi_tri)}</td><td class="n">${fmt(c.hstt)}</td><td class="n">${fmt(c.doi_chieu)}</td><td>${esc(c.mo_ta)}</td></tr>`).join("")}</table>`
+      ${co.map((c, j) => [c, j]).sort((x, y) => (x[0].muc > y[0].muc) - (x[0].muc < y[0].muc)).map(([c, j]) => `<tr${c.ngoai_le ? ` class="ngoai-le"` : ""}><td><span class="b ${c.muc}">${c.muc === "CHAN" ? (c.ngoai_le ? "NGOẠI LỆ" : "CHẶN") : "LƯU Ý"}</span></td><td>${esc(c.lop)}</td>
+      <td>${esc(c.vi_tri)}</td><td class="n">${fmt(c.hstt)}</td><td class="n">${fmt(c.doi_chieu)}</td><td>${esc(c.mo_ta)}
+      ${c.ngoai_le ? (c.da_xac_nhan ? `<div class="note">✓ Anh đã xác nhận ${esc((c.da_xac_nhan.luc || "").slice(0, 16).replace("T", " "))} — ${esc(c.da_xac_nhan.ly_do)}</div>`
+        : `<div class="nen-form" style="margin-top:6px"><input class="xnl-ly-${j}" placeholder="Lý do xác nhận (vd: đã thống nhất với CĐT, chưa có chứng từ)" style="flex:1 1 280px">
+           <button class="btn fix sm xnl-nut" data-j="${j}">✓ Xác nhận ngoại lệ</button></div>`) : ""}</td></tr>`).join("")}</table>`
       : `<div class="empty">Không có cờ nào — số liệu khớp hợp đồng, số học và đợt trước.</div>`}</div>
   </div>
   <div class="acts">
@@ -466,6 +469,14 @@ function the(r) {
     try { el.replaceWith(the(await api("/hd-tam", {du_an: $("#da").value, id: r.id, loai_dt: el.querySelector(".ht-loai").value, ly_do: el.querySelector(".ht-lydo").value}))) }
     catch (e) { alert("Lỗi: " + e.message); ht.disabled = false; ht.textContent = "➕ Tạo HĐ tạm & soát lại" }
   };
+  el.querySelectorAll(".xnl-nut").forEach(b => b.onclick = async () => {
+    const j = b.dataset.j, ly_do = el.querySelector(`.xnl-ly-${j}`).value.trim(), c = co[+j];
+    if (!ly_do) { alert("Cần ghi lý do xác nhận"); return }
+    if (!confirm(`Xác nhận NGOẠI LỆ "${c.mo_ta}"?\nLý do: ${ly_do}`)) return;
+    b.disabled = true; b.textContent = "Đang xác nhận…";
+    try { el.replaceWith(the(await api("/xac-nhan-ngoai-le", {du_an: $("#da").value, id: r.id, khoa: `${c.lop}|${c.vi_tri}`, ly_do}))) }
+    catch (e) { alert("Lỗi: " + e.message); b.disabled = false; b.textContent = "✓ Xác nhận ngoại lệ" }
+  });
   el.querySelectorAll("button[data-a]").forEach(b => b.onclick = async () => {
     const a = b.dataset.a; let ly_do = "";
     if (a !== "DONG_Y") { ly_do = prompt(a === "TRA_DOI" ? "Lý do trả đội:" : "Nội dung cần chỉnh sửa:"); if (ly_do === null) return }
@@ -484,7 +495,7 @@ const TT = {CHO_DUYET: ["Chờ duyệt", ""], DA_GHI_SO: ["Đã ghi sổ", "ok"]
 async function hoSo() {
   try { const ds = await api("/ho-so?du_an=" + $("#da").value);
     $("#tb-hs").innerHTML = `<tr><th>Nạp lúc</th><th>File</th><th>HĐ</th><th>Đợt</th><th class="n">Kỳ này</th><th>Cờ</th><th>Trạng thái</th></tr>` + (ds.length ? ds.map((r, i) => {
-      const nc = r.co.filter(c => c.muc === "CHAN").length, tt = TT[r.trang_thai] || [r.trang_thai, ""];
+      const nc = r.co.filter(c => c.muc === "CHAN" && !c.da_xac_nhan).length, tt = TT[r.trang_thai] || [r.trang_thai, ""];
       return `<tr class="click" data-i="${i}" title="Bấm để xem chi tiết"><td>${esc(r.luc.replace("T", " "))}</td><td>${esc(r.ten)}</td><td>${esc(r.phan_loai?.ma_hd || "—")}</td>
        <td>${esc(r.tom_tat?.dot)}</td><td class="n">${fmt(r.tom_tat?.ky_nay)}</td>
        <td>${nc ? `<span class="chip er">${nc} chặn</span> ` : ""}<span class="chip wa">${r.co.length - nc} lưu ý</span></td><td><span class="chip ${tt[1]}">${tt[0]}</span></td></tr>` }).join("")
