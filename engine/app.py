@@ -94,13 +94,40 @@ def xu_ly_nap(b):
         cu_rec["co"] = [dict(muc="CHAN", lop="Hồ sơ", vi_tri="file", hstt=i, doi_chieu="đã ghi sổ", mo_ta="Hồ sơ này ĐÃ GHI SỔ lúc " + str(cu_rec.get("luc_duyet")))]
         return cu_rec
     rec = dict(id=i, van_tay=vt, ten=ten, file=dich, luc=dt.datetime.now().isoformat(timespec="seconds"),
-               trang_thai="CHO_DUYET",                                   # nạp lại (kể cả file đã TRẢ ĐỘI / YÊU CẦU SỬA) ⇒ soát lại từ đầu, chờ duyệt
+               trang_thai="CHO_DUYET", khung_mtime=os.path.getmtime(cfg["khung"]),  # nạp lại (kể cả file đã TRẢ ĐỘI / YÊU CẦU SỬA) ⇒ soát lại từ đầu, chờ duyệt
                phan_loai=kq["phan_loai"], tom_tat=kq["tom_tat"], co=kq["co"], ke_hoach=kh, ly_do=None, ket_qua=None,
                lich_su=((cu_rec or {}).get("lich_su") or []) + ([dict(trang_thai=cu_rec["trang_thai"], ly_do=cu_rec.get("ly_do"), luc=cu_rec.get("luc_duyet") or cu_rec.get("luc"))]
                                                         if cu_rec and cu_rec["trang_thai"] != "CHO_DUYET" else []))
     if cu_rec and cu_rec.get("hd_tam"): rec["hd_tam"] = cu_rec["hd_tam"]
     s = ghi_rec(da, i, rec)
     return rec
+
+def soat_lai_ho_so(da):
+    """Hồ sơ CHỜ DUYỆT ⇒ soát lại cờ mỗi khi khung đổi sau lúc nạp (giống nen.soat_lai_pl) — tránh hiện cờ CŨ khi anh đã sửa khung
+    (sự cố 01/10: vá dot_cuoi N8 sau khi Đợt 3 đã nạp ⇒ cờ 'thiếu đợt' cũ vẫn hiện tới khi soát lại)."""
+    cfg = du_an().get(da)
+    if not cfg or not os.path.exists(cfg["khung"]): return 0
+    mt = os.path.getmtime(cfg["khung"]); s = so_nap(da)
+    can = [i for i, r in s.items() if r.get("trang_thai") == "CHO_DUYET" and r.get("khung_mtime") != mt and r.get("file")]
+    for i in can:
+        try:
+            r = s[i]; f = tuyet_doi(r["file"])
+            if not os.path.exists(f): continue
+            hs = D.doc_file(f); hs["van_tay"] = r["van_tay"]
+            k = K.doc_khung(cfg["khung"]); k["tu_khoa"] = cfg.get("tu_khoa", [])
+            cu = {v["van_tay"] for k_, v in s.items() if k_ != i and v["trang_thai"] != "TRA_DOI"}
+            kq = K.kiem(hs, k, cu)
+            if hs.get("mau") == "CONG_NHAT" and hs.get("lk_cover") is not None and abs(hs["tong"][2] - hs["lk_cover"]) > 1:
+                kq["co"].insert(0, dict(muc="CHAN", lop="Số học", vi_tri="COVER", hstt=hs["tong"][2], doi_chieu=hs["lk_cover"],
+                                        mo_ta=f"Σ ngày công {hs['tong'][2]:,.0f} ≠ giá trị thực hiện lũy kế trên COVER {hs['lk_cover']:,.0f} — bảng KL thiếu/thừa dòng"))
+            kh = G.ke_hoach(hs, kq, k) if kq["phan_loai"]["ma_hd"] else None
+            with SO_KHOA:
+                s2 = so_nap(da); r2 = s2.get(i)
+                if r2 and r2.get("trang_thai") == "CHO_DUYET":
+                    r2.update(phan_loai=kq["phan_loai"], tom_tat=kq["tom_tat"], co=kq["co"], ke_hoach=kh, khung_mtime=mt)
+                    luu_so(da, s2)
+        except Exception: traceback.print_exc()
+    return len(can)
 
 def xu_ly_duyet(b):
     da, i, hd = b["du_an"], b["id"], b["hanh_dong"]
@@ -331,7 +358,10 @@ class H(BaseHTTPRequestHandler):
         try:
             if u.path == "/ping": return self._tra(200, dict(ok=True, engine="soat-hstt", phien_ban="1.0"))
             if u.path == "/du-an": return self._tra(200, {k: v.get("ten", k) for k, v in du_an().items()})
-            if u.path == "/ho-so": return self._tra(200, sorted(so_nap(q["du_an"]).values(), key=lambda r: r["luc"], reverse=True))
+            if u.path == "/ho-so":
+                try: soat_lai_ho_so(q["du_an"])
+                except Exception: traceback.print_exc()
+                return self._tra(200, sorted(so_nap(q["du_an"]).values(), key=lambda r: r["luc"], reverse=True))
             if u.path == "/bao-cao": return self._tra(200, bao_cao(q["du_an"]))
             if u.path == "/ma-ns": return self._tra(200, KB.ds_ma_ns(du_an()[q["du_an"]]["khung"]))
             if u.path == "/hd-cdt-tam-ung": return self._tra(200, TU.ds_hop_dong_cdt(du_an()[q["du_an"]]["khung"]))
